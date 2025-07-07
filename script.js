@@ -1006,9 +1006,17 @@ function downloadGamePDF() {
             ${gameData.atBatHistory && gameData.atBatHistory.length > 0 ? `
             <div style="margin-bottom: 20px;">
                 <h2 style="font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 5px;">打席記録履歴</h2>
-                <div style="font-size: 10px;">
-                    ${generateAtBatHistoryRows()}
-                </div>
+                <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10px;">
+                    <tr style="background: #f0f0f0;">
+                        <th style="border: 1px solid #333; padding: 6px;">イニング</th>
+                        <th style="border: 1px solid #333; padding: 6px;">チーム</th>
+                        <th style="border: 1px solid #333; padding: 6px;">背番号</th>
+                        <th style="border: 1px solid #333; padding: 6px;">選手名</th>
+                        <th style="border: 1px solid #333; padding: 6px;">打席結果</th>
+                        <th style="border: 1px solid #333; padding: 6px;">得点</th>
+                    </tr>
+                    ${generateAtBatHistoryTableRows()}
+                </table>
             </div>
             ` : ''}
             
@@ -1092,9 +1100,19 @@ function getGameResultText() {
 function generateScoreRow(team) {
     let html = '';
     let total = 0;
-    for (let i = 1; i <= 7; i++) {
-        // gameData構造に合わせて修正
-        const score = team === 'home' ? (gameData.homeScore[i-1] || 0) : (gameData.awayScore[i-1] || 0);
+    
+    // gameDataの構造を確認
+    console.log('generateScoreRow called with team:', team);
+    console.log('gameData.homeScore:', gameData.homeScore);
+    console.log('gameData.awayScore:', gameData.awayScore);
+    
+    for (let i = 0; i < 7; i++) {
+        let score = 0;
+        if (team === 'home' && gameData.homeScore && gameData.homeScore[i] !== undefined) {
+            score = gameData.homeScore[i];
+        } else if (team === 'away' && gameData.awayScore && gameData.awayScore[i] !== undefined) {
+            score = gameData.awayScore[i];
+        }
         total += score;
         html += `<td style="border: 1px solid #333; padding: 8px; text-align: center;">${score}</td>`;
     }
@@ -1167,15 +1185,48 @@ function generateAtBatHistoryRows() {
             const runs = record.runs || 0;
             
             html += `
-                <div style="margin: 5px 0; padding: 5px; border-bottom: 1px solid #ddd;">
-                    <strong>${inning}回${half}</strong> - 
-                    ${team}: #${playerNumber} ${playerName} - 
-                    ${result} (${runs}得点)
+                <div style="margin: 5px 0; padding: 8px; border-bottom: 1px solid #ddd; background: #f9f9f9;">
+                    <div style="font-weight: bold; color: #333; margin-bottom: 3px;">
+                        ${inning}回${half} - ${team}
+                    </div>
+                    <div style="margin-left: 10px;">
+                        <strong>選手:</strong> #${playerNumber} ${playerName}<br>
+                        <strong>結果:</strong> ${result}<br>
+                        <strong>得点:</strong> ${runs}点
+                    </div>
                 </div>
             `;
         });
     }
     return html || '<div style="padding: 10px;">打席記録はありません</div>';
+}
+
+// 打席履歴テーブル行を生成
+function generateAtBatHistoryTableRows() {
+    let html = '';
+    if (gameData.atBatHistory && gameData.atBatHistory.length > 0) {
+        gameData.atBatHistory.forEach(record => {
+            const inning = record.inning || 1;
+            const half = record.isTop ? '表' : '裏';
+            const team = record.battingTeam === 'home' ? gameData.homeTeamName : gameData.awayTeamName;
+            const playerNumber = record.player ? record.player.number : '';
+            const playerName = record.player ? record.player.name : '';
+            const result = getResultText(record.result) || record.result || '';
+            const runs = record.runs || 0;
+            
+            html += `
+                <tr>
+                    <td style="border: 1px solid #333; padding: 6px; text-align: center;">${inning}回${half}</td>
+                    <td style="border: 1px solid #333; padding: 6px;">${team}</td>
+                    <td style="border: 1px solid #333; padding: 6px; text-align: center;">#${playerNumber}</td>
+                    <td style="border: 1px solid #333; padding: 6px;">${playerName}</td>
+                    <td style="border: 1px solid #333; padding: 6px;">${result}</td>
+                    <td style="border: 1px solid #333; padding: 6px; text-align: center;">${runs}点</td>
+                </tr>
+            `;
+        });
+    }
+    return html;
 }
 
 // 交代履歴行を生成
