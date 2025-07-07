@@ -1,0 +1,661 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 30px;
+    background: linear-gradient(135deg, #2c5530, #4a7c59);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+header h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+}
+
+section {
+    background: white;
+    margin-bottom: 20px;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+section h2 {
+    color: #2c5530;
+    margin-bottom: 15px;
+    border-bottom: 2px solid #4a7c59;
+    padding-bottom: 5px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #555;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    max-width: 300px;
+    padding: 8px 12px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #4a7c59;
+}
+
+button {
+    background: #4a7c59;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background: #2c5530;
+}
+
+button:active {
+    transform: translateY(1px);
+}
+
+/* スコアボード */
+.score-table {
+    overflow-x: auto;
+    margin-bottom: 20px;
+}
+
+#scoreTable {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+#scoreTable th,
+#scoreTable td {
+    border: 2px solid #4a7c59;
+    padding: 10px;
+    text-align: center;
+    font-weight: bold;
+}
+
+#scoreTable th {
+    background: #4a7c59;
+    color: white;
+}
+
+#scoreTable td {
+    background: #f9f9f9;
+    font-size: 18px;
+}
+
+.game-status {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.inning-info select {
+    margin-right: 10px;
+}
+
+/* ベース表示 */
+.bases {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.base {
+    width: 60px;
+    height: 60px;
+    background: #ddd;
+    border: 2px solid #4a7c59;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.base.occupied {
+    background: #ff6b6b;
+    color: white;
+}
+
+.base:hover {
+    transform: scale(1.05);
+}
+
+/* チーム設定 */
+.team-config {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+/* 選手リスト */
+.players-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.team-players h3 {
+    color: #2c5530;
+    border-bottom: 2px solid #4a7c59;
+    padding-bottom: 5px;
+    margin-bottom: 15px;
+}
+
+#homePlayersList, #awayPlayersList {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+/* アウトカウント */
+.out-count {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+#outCount {
+    font-size: 24px;
+    font-weight: bold;
+    color: #ff6b6b;
+}
+
+
+
+.player-card {
+    background: #f0f8f0;
+    border: 2px solid #4a7c59;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+}
+
+.player-card .player-number {
+    font-size: 20px;
+    font-weight: bold;
+    color: #2c5530;
+}
+
+.player-card .player-name {
+    margin-top: 5px;
+    font-size: 14px;
+}
+
+.player-card .player-position {
+    margin-top: 3px;
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+}
+
+/* 選手交代関連スタイル */
+.substitute-btn {
+    background: #ff6b6b;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    margin-top: 5px;
+}
+
+.substitute-btn:hover {
+    background: #ff5252;
+}
+
+.edit-btn {
+    background: #2196F3;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    margin-top: 5px;
+    margin-right: 5px;
+}
+
+.edit-btn:hover {
+    background: #1976D2;
+}
+
+.substituted {
+    text-decoration: line-through;
+    color: #999;
+}
+
+.substituted-label {
+    font-size: 11px;
+    color: #999;
+    font-style: italic;
+    margin-top: 5px;
+    display: block;
+}
+
+/* 交代履歴スタイル */
+.substitution-history {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.substitution-records {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.substitution-record {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.substitution-info {
+    color: #2c5530;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.substitution-details {
+    font-size: 14px;
+    margin-bottom: 3px;
+}
+
+.substitution-time {
+    font-size: 12px;
+    color: #666;
+    text-align: right;
+}
+
+/* モーダルスタイル */
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    position: relative;
+}
+
+.close {
+    position: absolute;
+    right: 15px;
+    top: 10px;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #aaa;
+}
+
+.close:hover {
+    color: #000;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    justify-content: flex-end;
+}
+
+.modal-buttons button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.modal-buttons button:first-child {
+    background: #4CAF50;
+    color: white;
+}
+
+.modal-buttons button:first-child:hover {
+    background: #45a049;
+}
+
+.modal-buttons button:last-child {
+    background: #f44336;
+    color: white;
+}
+
+.modal-buttons button:last-child:hover {
+    background: #da190b;
+}
+
+.modal-buttons button:nth-child(2) {
+    background: #ff9800;
+    color: white;
+}
+
+.modal-buttons button:nth-child(2):hover {
+    background: #f57c00;
+}
+
+/* レスポンシブデザイン */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+    
+    .form-group {
+        margin-bottom: 15px;
+    }
+    
+    .form-group label {
+        font-size: 14px;
+        margin-bottom: 5px;
+    }
+    
+    .form-group input,
+    .form-group select {
+        font-size: 16px;
+        padding: 12px;
+    }
+    
+    .players-list {
+        flex-direction: column;
+    }
+    
+    .team-players {
+        margin-bottom: 20px;
+    }
+    
+    .player-card {
+        margin-bottom: 10px;
+        padding: 15px;
+    }
+    
+    .player-card button {
+        font-size: 12px;
+        padding: 8px 12px;
+        margin: 2px;
+    }
+    
+    .score-table {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .score-table table {
+        min-width: 600px;
+    }
+    
+    .game-controls {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .runners {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .runner {
+        min-width: 60px;
+    }
+    
+    .modal-content {
+        width: 95%;
+        margin: 20px auto;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    
+    .modal-buttons {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .modal-buttons button {
+        width: 100%;
+    }
+    
+    h1 {
+        font-size: 24px;
+    }
+    
+    h2 {
+        font-size: 20px;
+    }
+    
+    h3 {
+        font-size: 18px;
+    }
+    
+    button {
+        font-size: 14px;
+        padding: 12px 16px;
+        min-height: 44px;
+    }
+    
+    .substitute-btn,
+    .edit-btn {
+        font-size: 12px;
+        padding: 8px 12px;
+        min-height: 36px;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 5px;
+    }
+    
+    .player-card {
+        padding: 10px;
+    }
+    
+    .player-number {
+        font-size: 16px;
+    }
+    
+    .player-name {
+        font-size: 14px;
+    }
+    
+    .player-position {
+        font-size: 12px;
+    }
+    
+    .score-table table {
+        font-size: 12px;
+    }
+    
+    .score-table th,
+    .score-table td {
+        padding: 8px 4px;
+    }
+    
+    .modal-content {
+        width: 98%;
+        margin: 10px auto;
+    }
+}
+
+/* 成績テーブル */
+#statsTable {
+    overflow-x: auto;
+}
+
+.stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.stats-table th,
+.stats-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+}
+
+.stats-table th {
+    background: #4a7c59;
+    color: white;
+}
+
+.stats-table tr:nth-child(even) {
+    background: #f9f9f9;
+}
+
+/* 打席履歴 */
+#atBatHistory {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.at-bat-record {
+    background: #f9f9f9;
+    border-left: 4px solid #4a7c59;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 0 5px 5px 0;
+}
+
+.at-bat-record .timestamp {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.at-bat-record .details {
+    font-weight: bold;
+}
+
+/* レスポンシブデザイン */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+    
+    header h1 {
+        font-size: 2em;
+    }
+    
+    .game-status {
+        grid-template-columns: 1fr;
+    }
+    
+    .form-group input,
+    .form-group select {
+        max-width: 100%;
+    }
+    
+    #scoreTable {
+        font-size: 14px;
+    }
+    
+    #scoreTable th,
+    #scoreTable td {
+        padding: 5px;
+    }
+}
+
+/* アニメーション */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.player-card,
+.at-bat-record {
+    animation: slideIn 0.3s ease-out;
+}
+
+/* 成功・エラーメッセージ */
+.message {
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    font-weight: bold;
+}
+
+.message.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.message.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
