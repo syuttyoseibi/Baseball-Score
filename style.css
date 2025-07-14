@@ -79,6 +79,7 @@ section h2 {
 }
 
 .collapsible .section-content {
+    max-height: 1000px; /* 十分な高さを設定 */
     overflow: hidden;
     transition: max-height 0.3s ease-out;
 }

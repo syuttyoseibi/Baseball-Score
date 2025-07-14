@@ -115,12 +115,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.section-toggle').forEach(toggle => {
             toggle.addEventListener('click', () => {
                 const content = toggle.nextElementSibling;
-                toggle.classList.toggle('collapsed');
-                // content.style.display = toggle.classList.contains('collapsed') ? 'none' : '';
-                if (toggle.classList.contains('collapsed')) {
-                    content.style.maxHeight = null;
+                toggle.classList.toggle('collapsed'); // h2にcollapsedクラスをトグル
+                content.classList.toggle('collapsed'); // contentにもcollapsedクラスをトグル
+
+                if (content.classList.contains('collapsed')) {
+                    content.style.maxHeight = null; // collapsedクラスがついていればmaxHeightをリセット
                 } else {
-                    content.style.maxHeight = content.scrollHeight + "px";
+                    content.style.maxHeight = content.scrollHeight + "px"; // 展開時はscrollHeightを設定
                 }
             });
         });
