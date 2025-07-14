@@ -56,23 +56,35 @@ section h2 {
     padding-bottom: 5px;
 }
 
-.section-toggle {
+/* Accordion styles */
+.collapsible .section-toggle {
     cursor: pointer;
     position: relative;
+    padding-right: 30px; /* Space for the toggle icon */
 }
 
-.section-toggle::after {
-    content: '-';
+.collapsible .section-toggle::after {
+    content: '−'; /* Minus sign for expanded state */
     position: absolute;
     right: 10px;
     top: 50%;
     transform: translateY(-50%);
     font-size: 1.5em;
     font-weight: bold;
+    color: #4a7c59;
 }
 
-.section-toggle.collapsed::after {
-    content: '+';
+.collapsible .section-toggle.collapsed::after {
+    content: '＋'; /* Plus sign for collapsed state */
+}
+
+.collapsible .section-content {
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+.collapsible .section-content.collapsed {
+    max-height: 0;
 }
 
 .form-group {
@@ -436,6 +448,14 @@ button:active {
         padding: 10px;
     }
     
+    header h1 {
+        font-size: 2em;
+    }
+
+    .header-icon {
+        margin-right: 10px;
+    }
+    
     .form-group {
         margin-bottom: 15px;
     }
@@ -511,10 +531,6 @@ button:active {
     
     h1 {
         font-size: 24px;
-    }
-
-    .header-icon {
-        margin-right: 10px;
     }
     
     h2 {
@@ -759,4 +775,45 @@ button:active {
 .message-container {
     margin-top: 10px;
     min-height: 20px; /* メッセージ表示領域を確保 */
+}
+
+.global-message-container {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2000;
+    width: 90%;
+    max-width: 600px;
+}
+
+.global-message-container .message {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+.help-button {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: #fff;
+    color: #2c5530;
+    border: 2px solid #2c5530;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.help-button:hover {
+    background: #2c5530;
+    color: #fff;
+}
+
+@media (max-width: 768px) {
+    .help-button {
+        top: 10px;
+        right: 10px;
+        padding: 6px 12px;
+        font-size: 12px;
+    }
 }

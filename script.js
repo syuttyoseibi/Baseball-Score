@@ -111,12 +111,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // スコアボードの直接編集
         makeScoreEditable();
 
-        // 折りたたみ機能
+        // アコーディオン機能
         document.querySelectorAll('.section-toggle').forEach(toggle => {
             toggle.addEventListener('click', () => {
                 const content = toggle.nextElementSibling;
                 toggle.classList.toggle('collapsed');
-                content.style.display = toggle.classList.contains('collapsed') ? 'none' : '';
+                // content.style.display = toggle.classList.contains('collapsed') ? 'none' : '';
+                if (toggle.classList.contains('collapsed')) {
+                    content.style.maxHeight = null;
+                } else {
+                    content.style.maxHeight = content.scrollHeight + "px";
+                }
             });
         });
     }
@@ -376,8 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
         gameData.substitutionHistory.forEach(r => {
             html += `
                 <div class="substitution-record">
-                    <div class="substitution-info"><strong>${r.inning}回${r.half}</strong> - ${r.team}</div>
-                    <div class="substitution-details">${r.outPlayer} → ${r.inPlayer} (${getPositionFullName(r.position)})</div>
+                    <div class="substitution-info"><strong>${r.inning}回${r.half}</strong> - ${r.team}: ${r.outPlayer} → ${r.inPlayer} (${getPositionFullName(r.position)})</div>
                     <div class="substitution-time">${r.timestamp}</div>
                 </div>
             `;
