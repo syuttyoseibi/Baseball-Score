@@ -351,8 +351,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 </tr>
             `;
         };
-        homePlayers.sort((a, b) => a.number - b.number).forEach(p => tableHTML += generateRow(p));
         awayPlayers.sort((a, b) => a.number - b.number).forEach(p => tableHTML += generateRow(p));
+        homePlayers.sort((a, b) => a.number - b.number).forEach(p => tableHTML += generateRow(p));
         tableHTML += '</tbody></table>';
         statsDiv.innerHTML = tableHTML;
     }
