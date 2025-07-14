@@ -1,7 +1,41 @@
+// IndexedDBの初期化
+let db;
+const dbName = "BaseballScoreDB";
+const playerStoreName = "playerMaster";
+const gameDataStoreName = "gameData"; // 新しいストア名
+
+function initDB() {
+    const request = indexedDB.open(dbName, 2); // バージョンを2に上げる
+
+    request.onerror = function(event) {
+        console.error("Database error: " + event.target.errorCode);
+    };
+
+    request.onsuccess = function(event) {
+        db = event.target.result;
+        console.log("Database initialized");
+        loadGameData(); // データベース初期化後にゲームデータをロード
+    };
+
+    request.onupgradeneeded = function(event) {
+        let db = event.target.result;
+        // 既存のplayerMasterストア
+        if (!db.objectStoreNames.contains(playerStoreName)) {
+            db.createObjectStore(playerStoreName, { keyPath: ['teamName', 'number'] });
+        }
+        // 新しいgameDataストア
+        if (!db.objectStoreNames.contains(gameDataStoreName)) {
+            db.createObjectStore(gameDataStoreName, { keyPath: "id" });
+        }
+        console.log("Object store created/updated");
+    };
+}
+
 // グローバル変数（セッション中のみ保持）
 let homePlayers = [];
 let awayPlayers = [];
 let gameData = {
+    id: "current_game", // gameDataストアのキー
     date: '',
     location: '',
     homeTeamName: '我がチーム',
@@ -14,11 +48,13 @@ let gameData = {
     isTop: true,
     outs: 0,
     bases: [false, false, false], // 1塁、2塁、3塁
-    atBatHistory: []
+    atBatHistory: [],
+    substitutionHistory: []
 };
 
 // ページ読み込み時の初期化
 document.addEventListener('DOMContentLoaded', function() {
+    initDB();
     // 今日の日付を設定
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('gameDate').value = today;
@@ -50,12 +86,25 @@ function setupEventListeners() {
     document.getElementById('currentInning').addEventListener('change', function() {
         gameData.currentInning = parseInt(this.value);
         updateDisplay();
+        saveGameData();
     });
     
     document.getElementById('topBottom').addEventListener('change', function() {
         gameData.isTop = this.value === 'top';
         updateBattingTeamSelect();
         updateDisplay();
+        saveGameData();
+    });
+
+    // ページ離脱時の警告
+    window.addEventListener('beforeunload', function(e) {
+        // 試合データが保存されている、または変更がある場合に警告を表示
+        // より厳密な変更検知は複雑になるため、ここではデータが存在すれば警告とします。
+        if (gameData.atBatHistory.length > 0 || homePlayers.length > 0 || awayPlayers.length > 0) { 
+            e.preventDefault();
+            e.returnValue = ''; 
+            return ''; 
+        }
     });
 }
 
@@ -77,8 +126,8 @@ function updateTeamNames() {
     
     // 選手登録のチーム選択更新
     const playerTeamSelect = document.getElementById('playerTeam');
-    playerTeamSelect.options[0].textContent = homeTeamName;
-    playerTeamSelect.options[1].textContent = awayTeamName;
+    playerTeamSelect.options[0].textContent = awayTeamName;
+    playerTeamSelect.options[1].textContent = homeTeamName;
     
     // 打席チーム選択更新
     const battingTeamSelect = document.getElementById('battingTeam');
@@ -87,6 +136,7 @@ function updateTeamNames() {
     
     // 試合結果のオプションを更新
     updateGameResultOptions();
+    saveGameData();
 }
 
 // 試合結果のオプションを更新
@@ -116,24 +166,30 @@ function addPlayer() {
     const position = positionSelect.value;
     
     if (!name) {
-        showMessage('選手名を入力してください', 'error');
+        showMessage('選手名を入力してください', 'error', 'addPlayerErrorDisplay');
         return;
     }
     
-    if (!number || number < 1 || number > 99) {
-        showMessage('背番号は1-99の範囲で入力してください', 'error');
+    if (number === null || number < 0 || number > 99) {
+        showMessage('背番号は0-99の範囲で入力してください', 'error', 'addPlayerErrorDisplay');
         return;
     }
     
     const targetPlayers = team === 'home' ? homePlayers : awayPlayers;
     
-    // 同チーム内での背番号重複チェック
-    if (targetPlayers.some(player => player.number === number)) {
-        showMessage('この背番号は既に使用されています', 'error');
+    // 背番号重複チェック
+    if (targetPlayers.some(player => player.number === number && player.isActive)) {
+        showMessage(`背番号 ${number} は既に使用されています。`, 'error', 'addPlayerErrorDisplay');
+        return;
+    }
+
+    // 守備位置重複チェック（守備位置が選択されている場合のみ）
+    if (position && targetPlayers.some(player => player.position === position && player.isActive)) {
+        showMessage(`${getPositionFullName(position)} の守備位置は既に使用されています。`, 'error', 'addPlayerErrorDisplay');
         return;
     }
     
-    // 選手を追加
+    const teamName = team === 'home' ? gameData.homeTeamName : gameData.awayTeamName;
     const player = {
         id: Date.now(),
         name: name,
@@ -154,6 +210,7 @@ function addPlayer() {
     };
     
     targetPlayers.push(player);
+    savePlayerToMaster(teamName, { name, number });
     
     // 入力フィールドをクリア
     nameInput.value = '';
@@ -162,7 +219,8 @@ function addPlayer() {
     
     updatePlayersDisplay();
     updateBatterSelect();
-    showMessage('選手を追加しました', 'success');
+    showMessage('選手を追加しました', 'success', 'addPlayerErrorDisplay');
+    saveGameData();
 }
 
 // 選手表示更新
@@ -179,9 +237,9 @@ function updatePlayersDisplay() {
         playerCard.className = 'player-card';
         const statusClass = player.isActive === false ? 'substituted' : '';
         playerCard.innerHTML = `
-            <div class="player-number">#${player.number}</div>
+            <div class="player-number">${player.number}</div>
             <div class="player-name ${statusClass}">${player.name}</div>
-            ${player.position ? `<div class="player-position">${player.position}</div>` : ''}
+            ${player.position ? `<div class="player-position">${getPositionFullName(player.position)}</div>` : ''}
             <div>
                 <button class="edit-btn" onclick="editPlayer('home', ${player.id})">編集</button>
                 ${player.isActive !== false ? `<button class="substitute-btn" onclick="substitutePlayer('home', ${player.id})">交代</button>` : '<span class="substituted-label">交代済</span>'}
@@ -196,9 +254,9 @@ function updatePlayersDisplay() {
         playerCard.className = 'player-card';
         const statusClass = player.isActive === false ? 'substituted' : '';
         playerCard.innerHTML = `
-            <div class="player-number">#${player.number}</div>
+            <div class="player-number">${player.number}</div>
             <div class="player-name ${statusClass}">${player.name}</div>
-            ${player.position ? `<div class="player-position">${player.position}</div>` : ''}
+            ${player.position ? `<div class="player-position">${getPositionFullName(player.position)}</div>` : ''}
             <div>
                 <button class="edit-btn" onclick="editPlayer('away', ${player.id})">編集</button>
                 ${player.isActive !== false ? `<button class="substitute-btn" onclick="substitutePlayer('away', ${player.id})">交代</button>` : '<span class="substituted-label">交代済</span>'}
@@ -227,7 +285,7 @@ function substitutePlayer(team, playerId) {
     const playerInfo = document.getElementById('substitutionPlayerInfo');
     const teamName = team === 'home' ? gameData.homeTeamName : gameData.awayTeamName;
     playerInfo.innerHTML = `
-        <p><strong>交代対象選手:</strong> ${teamName} #${player.number} ${player.name} (${player.position || '未指定'})</p>
+        <p><strong>交代対象選手:</strong> ${teamName} ${player.number} ${player.name} (${getPositionFullName(player.position) || '未指定'})</p>
         <p><strong>現在:</strong> ${gameData.currentInning}回${gameData.isTop ? '表' : '裏'}</p>
     `;
     
@@ -237,11 +295,11 @@ function substitutePlayer(team, playerId) {
     document.getElementById('newPlayerPosition').value = '';
     
     // モーダルを表示
-    document.getElementById('substitutionModal').style.display = 'flex';
+    document.getElementById('substitutionModal').classList.add('visible');
 }
 
 function closeSubstitutionModal() {
-    document.getElementById('substitutionModal').style.display = 'none';
+    document.getElementById('substitutionModal').classList.remove('visible');
     currentSubstitutionData = null;
 }
 
@@ -254,12 +312,12 @@ function confirmSubstitution() {
     
     // バリデーション
     if (!newPlayerName) {
-        showMessage('選手名を入力してください', 'error');
+        showMessage('選手名を入力してください', 'error', 'substitutionErrorDisplay');
         return;
     }
     
-    if (!newPlayerNumber || newPlayerNumber < 1 || newPlayerNumber > 99) {
-        showMessage('背番号は1-99の範囲で入力してください', 'error');
+    if (newPlayerNumber === null || newPlayerNumber < 0 || newPlayerNumber > 99) {
+        showMessage('背番号は0-99の範囲で入力してください', 'error', 'substitutionErrorDisplay');
         return;
     }
     
@@ -267,8 +325,14 @@ function confirmSubstitution() {
     const targetPlayers = team === 'home' ? homePlayers : awayPlayers;
     
     // 背番号重複チェック（アクティブな選手のみ）
-    if (targetPlayers.some(p => p.number === newPlayerNumber && p.isActive !== false)) {
-        showMessage('この背番号は既に使用されています', 'error');
+    if (targetPlayers.some(p => p.number === newPlayerNumber && p.isActive)) {
+        showMessage(`背番号 ${newPlayerNumber} は既に使用されています。`, 'error', 'substitutionErrorDisplay');
+        return;
+    }
+
+    // 守備位置重複チェック（守備位置が選択されている場合のみ）
+    if (newPlayerPosition && targetPlayers.some(p => p.position === newPlayerPosition && p.isActive)) {
+        showMessage(`${getPositionFullName(newPlayerPosition)} の守備位置は既に使用されています。`, 'error', 'substitutionErrorDisplay');
         return;
     }
     
@@ -308,8 +372,8 @@ function confirmSubstitution() {
         half: gameData.isTop ? '表' : '裏',
         team: team === 'home' ? gameData.homeTeamName : gameData.awayTeamName,
         type: 'substitution',
-        outPlayer: `#${player.number} ${player.name}`,
-        inPlayer: `#${newPlayer.number} ${newPlayer.name}`,
+        outPlayer: `${player.number} ${player.name}`,
+        inPlayer: `${newPlayer.number} ${newPlayer.name}`,
         position: newPlayerPosition || '未指定',
         timestamp: new Date().toLocaleTimeString()
     };
@@ -328,17 +392,20 @@ function confirmSubstitution() {
     closeSubstitutionModal();
     
     showMessage(`${player.name} → ${newPlayer.name} の交代を記録しました`, 'success');
+    saveGameData();
 }
 
 // 選手編集機能
 let currentEditPlayerData = null;
 
 function editPlayer(team, playerId) {
+    console.log("editPlayer called for team: ", team, " playerId: ", playerId);
     const targetPlayers = team === 'home' ? homePlayers : awayPlayers;
     const player = targetPlayers.find(p => p.id === playerId);
     
     if (!player) {
         showMessage('選手が見つかりません', 'error');
+        console.error("Player not found for editing: ", playerId);
         return;
     }
     
@@ -351,12 +418,17 @@ function editPlayer(team, playerId) {
     document.getElementById('editPlayerPosition').value = player.position || '';
     
     // モーダルを表示
-    document.getElementById('editPlayerModal').style.display = 'flex';
+    document.getElementById('editPlayerModal').classList.add('visible');
 }
 
 function closeEditPlayerModal() {
-    document.getElementById('editPlayerModal').style.display = 'none';
+    document.getElementById('editPlayerModal').classList.remove('visible');
     currentEditPlayerData = null;
+    // エラーメッセージをクリア
+    const errorDisplay = document.getElementById('editPlayerErrorDisplay');
+    if (errorDisplay) {
+        errorDisplay.innerHTML = '';
+    }
 }
 
 function confirmEditPlayer() {
@@ -368,21 +440,27 @@ function confirmEditPlayer() {
     
     // バリデーション
     if (!newName) {
-        showMessage('選手名を入力してください', 'error');
+        showMessage('選手名を入力してください', 'error', 'editPlayerErrorDisplay');
         return;
     }
     
-    if (!newNumber || newNumber < 1 || newNumber > 99) {
-        showMessage('背番号は1-99の範囲で入力してください', 'error');
+    if (newNumber === null || newNumber < 0 || newNumber > 99) {
+        showMessage('背番号は0-99の範囲で入力してください', 'error', 'editPlayerErrorDisplay');
         return;
     }
     
     const { team, player } = currentEditPlayerData;
     const targetPlayers = team === 'home' ? homePlayers : awayPlayers;
     
-    // 背番号重複チェック（自分以外）
-    if (targetPlayers.some(p => p.id !== player.id && p.number === newNumber && p.isActive !== false)) {
-        showMessage('この背番号は既に使用されています', 'error');
+    // 背番号重複チェック（自分以外、かつアクティブな選手のみ）
+    if (targetPlayers.some(p => p.id !== player.id && p.number === newNumber && p.isActive)) {
+        showMessage(`背番号 ${newNumber} は既に使用されています。`, 'error', 'editPlayerErrorDisplay');
+        return;
+    }
+
+    // 守備位置重複チェック（自分以外、かつアクティブな選手で、守備位置が選択されている場合のみ）
+    if (newPosition && targetPlayers.some(p => p.id !== player.id && p.position === newPosition && p.isActive)) {
+        showMessage(`${getPositionFullName(newPosition)} の守備位置は既に使用されています。`, 'error', 'editPlayerErrorDisplay');
         return;
     }
     
@@ -399,7 +477,8 @@ function confirmEditPlayer() {
     // モーダルを閉じる
     closeEditPlayerModal();
     
-    showMessage('選手情報を更新しました', 'success');
+    showMessage('選手情報を更新しました', 'success'); // 成功メッセージはグローバルに表示
+    saveGameData();
 }
 
 function deletePlayer() {
@@ -438,6 +517,7 @@ function deletePlayer() {
     
     // モーダルを閉じる
     closeEditPlayerModal();
+    saveGameData();
 }
 
 // 交代履歴表示更新
@@ -458,7 +538,7 @@ function updateSubstitutionHistory() {
                     <strong>${record.inning}回${record.half}</strong> - ${record.team}
                 </div>
                 <div class="substitution-details">
-                    ${record.outPlayer} → ${record.inPlayer} (${record.position})
+                    ${record.outPlayer} → ${record.inPlayer} (${getPositionFullName(record.position)})
                 </div>
                 <div class="substitution-time">${record.timestamp}</div>
             </div>
@@ -482,7 +562,7 @@ function updateBatterSelect() {
         .forEach(player => {
             const option = document.createElement('option');
             option.value = player.id;
-            option.textContent = `#${player.number} ${player.name}`;
+            option.textContent = `${player.number} ${player.name}`;
             batterSelect.appendChild(option);
         });
 }
@@ -508,12 +588,14 @@ function addOut() {
         }
         updateDisplay();
     }
+    saveGameData();
 }
 
 // アウトカウントリセット
 function resetOuts() {
     gameData.outs = 0;
     updateDisplay();
+    saveGameData();
 }
 
 // イニング変更
@@ -528,12 +610,14 @@ function changeInning() {
     gameData.outs = 0;
     gameData.bases = [false, false, false];
     updateDisplay();
+    saveGameData();
 }
 
 // ベースクリック処理
 function toggleBase(baseNumber) {
     gameData.bases[baseNumber - 1] = !gameData.bases[baseNumber - 1];
     updateDisplay();
+    saveGameData();
 }
 
 // 打席結果記録
@@ -581,21 +665,19 @@ function recordAtBat() {
     
     // 打席履歴に追加
     const atBatRecord = {
+        id: Date.now(),
         timestamp: new Date().toLocaleTimeString(),
         inning: gameData.currentInning,
         isTop: gameData.isTop,
-        player: player,
+        playerId: player.id,
         result: result,
         runs: runs,
         battingTeam: battingTeam
     };
     gameData.atBatHistory.push(atBatRecord);
     
-    // ベース状況更新
-    updateBasesAfterAtBat(result);
-    
     // アウトカウント更新
-    if (['strikeout', 'groundout', 'flyout'].includes(result)) {
+    if (['strikeout', 'groundout', 'flyout', 'strikeoutWildPitch'].includes(result)) {
         addOut();
     }
     
@@ -609,79 +691,47 @@ function recordAtBat() {
     runsScored.value = '0';
     
     showMessage('打席結果を記録しました', 'success');
+    saveGameData();
 }
 
 // 選手統計更新
-function updatePlayerStats(player, result, runs) {
+function updatePlayerStats(player, result, runs, isReverting = false) {
     const stats = player.stats;
-    
-    // 打席数（フォアボール、デッドボールは除く）
-    if (!['walk', 'hbp'].includes(result)) {
-        stats.atBats++;
+    const multiplier = isReverting ? -1 : 1;
+
+    // 打席数
+    if (!['walk', 'hbp', 'strikeoutWildPitch'].includes(result)) {
+        stats.atBats += multiplier;
     }
     
     // 安打
-    if (['single', 'double', 'triple', 'homerun'].includes(result)) {
-        stats.hits++;
+    if (['single', 'double', 'triple', 'homerun', 'runningHomerun'].includes(result)) {
+        stats.hits += multiplier;
     }
     
     // 各種安打
     switch (result) {
         case 'double':
-            stats.doubles++;
+            stats.doubles += multiplier;
             break;
         case 'triple':
-            stats.triples++;
+            stats.triples += multiplier;
             break;
         case 'homerun':
-            stats.homeRuns++;
+        case 'runningHomerun':
+            stats.homeRuns += multiplier;
             break;
         case 'walk':
-            stats.walks++;
+            stats.walks += multiplier;
             break;
         case 'strikeout':
-            stats.strikeouts++;
+        case 'strikeoutWildPitch':
+            stats.strikeouts += multiplier;
             break;
     }
     
     // 打点
-    stats.rbis += runs;
-}
-
-// 打席結果後のベース状況更新
-function updateBasesAfterAtBat(result) {
-    const currentBases = [...gameData.bases]; // 現在のベース状況をコピー
-    
-    switch (result) {
-        case 'single':
-        case 'walk':
-        case 'hbp':
-        case 'error':
-            // ランナー1つずつ進塁、打者1塁へ
-            gameData.bases[2] = currentBases[1]; // 2塁→3塁
-            gameData.bases[1] = currentBases[0]; // 1塁→2塁
-            gameData.bases[0] = true; // 打者1塁へ
-            break;
-        case 'double':
-            // ランナー2つずつ進塁、打者2塁へ
-            gameData.bases[2] = currentBases[0]; // 1塁→3塁
-            gameData.bases[1] = true; // 打者2塁へ
-            gameData.bases[0] = false;
-            break;
-        case 'triple':
-            // 全ランナーホーム、打者3塁へ
-            gameData.bases = [false, false, true];
-            break;
-        case 'homerun':
-            // 全員ホーム
-            gameData.bases = [false, false, false];
-            break;
-        case 'strikeout':
-        case 'groundout':
-        case 'flyout':
-            // アウトのみ、ベース状況は変更なし
-            break;
-    }
+    stats.rbis += (runs * multiplier);
 }
 
 // 表示更新
@@ -725,15 +775,21 @@ function updateAtBatHistory() {
         const recordDiv = document.createElement('div');
         recordDiv.className = 'at-bat-record';
         
+        const allPlayers = [...homePlayers, ...awayPlayers];
+        const player = allPlayers.find(p => p.id === record.playerId);
+        
+        if (!player) return;
+
         const resultText = getResultText(record.result);
         const inningText = `${record.inning}回${record.isTop ? '表' : '裏'}`;
         
         recordDiv.innerHTML = `
             <div class="timestamp">${record.timestamp} - ${inningText}</div>
             <div class="details">
-                #${record.player.number} ${record.player.name}: ${resultText}
+                ${player.number} ${player.name}: ${resultText}
                 ${record.runs > 0 ? ` (${record.runs}得点)` : ''}
             </div>
+            <button class="edit-btn" onclick="editAtBat(${record.id})">編集</button>
         `;
         
         historyDiv.appendChild(recordDiv);
@@ -747,14 +803,33 @@ function getResultText(result) {
         'double': '二塁打',
         'triple': '三塁打',
         'homerun': 'ホームラン',
+        'runningHomerun': 'ランニングホームラン',
         'walk': 'フォアボール',
         'hbp': 'デッドボール',
         'strikeout': '三振',
+        'strikeoutWildPitch': '振り逃げ',
         'groundout': 'ゴロアウト',
         'flyout': 'フライアウト',
         'error': 'エラー'
     };
     return resultMap[result] || result;
+}
+
+// 守備位置の略称から正式名称へのマッピング
+function getPositionFullName(positionAbbr) {
+    const positionMap = {
+        'P': 'ピッチャー',
+        'C': 'キャッチャー',
+        '1B': 'ファースト',
+        '2B': 'セカンド',
+        '3B': 'サード',
+        'SS': 'ショート',
+        'LF': 'レフト',
+        'CF': 'センター',
+        'RF': 'ライト',
+        'DH': '指名打者'
+    };
+    return positionMap[positionAbbr] || positionAbbr; // マッピングがなければそのまま返す
 }
 
 // 選手成績表示更新
@@ -797,9 +872,9 @@ function updatePlayerStatsDisplay() {
         tableHTML += `
             <tr>
                 <td>${gameData.homeTeamName}</td>
-                <td>#${player.number}</td>
+                <td>${player.number}</td>
                 <td>${player.name}</td>
-                <td>${player.position || '-'}</td>
+                <td>${getPositionFullName(player.position) || '-'}</td>
                 <td>${stats.atBats}</td>
                 <td>${stats.hits}</td>
                 <td>${avg}</td>
@@ -821,9 +896,9 @@ function updatePlayerStatsDisplay() {
         tableHTML += `
             <tr>
                 <td>${gameData.awayTeamName}</td>
-                <td>#${player.number}</td>
+                <td>${player.number}</td>
                 <td>${player.name}</td>
-                <td>${player.position || '-'}</td>
+                <td>${getPositionFullName(player.position) || '-'}</td>
                 <td>${stats.atBats}</td>
                 <td>${stats.hits}</td>
                 <td>${avg}</td>
@@ -848,33 +923,49 @@ function clearHistory() {
         updateAtBatHistory();
         showMessage('履歴をクリアしました', 'success');
     }
+    saveGameData();
 }
 
 // メッセージ表示
-function showMessage(message, type) {
-    // 既存のメッセージを削除
-    const existingMessage = document.querySelector('.message');
-    if (existingMessage) {
-        existingMessage.remove();
+function showMessage(message, type, targetElementId = null) {
+    let messageContainer;
+    if (targetElementId) {
+        messageContainer = document.getElementById(targetElementId);
+        if (!messageContainer) {
+            console.error(`Target element with ID ${targetElementId} not found.`);
+            return;
+        }
+        // 既存のメッセージをクリア
+        messageContainer.innerHTML = '';
+    } else {
+        // 既存のグローバルメッセージをクリア
+        const existingGlobalMessage = document.querySelector('.message');
+        if (existingGlobalMessage) {
+            existingGlobalMessage.remove();
+        }
+        // グローバルメッセージ用のコンテナを作成または取得
+        messageContainer = document.createElement('div');
+        messageContainer.className = 'global-message-container'; // 新しいクラス名
+        const firstSection = document.querySelector('section');
+        firstSection.parentNode.insertBefore(messageContainer, firstSection);
     }
     
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${type}`;
     messageDiv.textContent = message;
-    
-    // 最初のセクションの前に挿入
-    const firstSection = document.querySelector('section');
-    firstSection.parentNode.insertBefore(messageDiv, firstSection);
+    messageContainer.appendChild(messageDiv);
     
     // 3秒後に自動削除
     setTimeout(() => {
         if (messageDiv.parentNode) {
             messageDiv.remove();
         }
+        // もしコンテナが空になったら、コンテナ自体も削除（グローバルメッセージの場合のみ）
+        if (!targetElementId && messageContainer.children.length === 0 && messageContainer.parentNode) {
+            messageContainer.remove();
+        }
     }, 3000);
 }
-
-
 
 // 試合情報保存
 function saveGameInfo() {
@@ -882,51 +973,7 @@ function saveGameInfo() {
     gameData.location = document.getElementById('gameLocation').value;
     gameData.status = document.getElementById('gameStatus').value;
     gameData.result = document.getElementById('gameResult').value;
-}
-
-// ダウンロード機能
-function downloadGameData() {
-    const gameResult = {
-        gameInfo: {
-            date: gameData.date,
-            location: gameData.location,
-            homeTeam: gameData.homeTeamName,
-            awayTeam: gameData.awayTeamName,
-            status: gameData.status,
-            result: gameData.result
-        },
-        finalScore: {
-            home: gameData.homeScore.reduce((a, b) => a + b, 0),
-            away: gameData.awayScore.reduce((a, b) => a + b, 0)
-        },
-        scoreByInning: {
-            home: gameData.homeScore,
-            away: gameData.awayScore
-        },
-        players: {
-            home: homePlayers,
-            away: awayPlayers
-        },
-        atBatHistory: gameData.atBatHistory,
-        substitutionHistory: gameData.substitutionHistory || [],
-        generatedAt: new Date().toISOString()
-    };
-    
-    // JSON形式でダウンロード
-    const dataStr = JSON.stringify(gameResult, null, 2);
-    const dataBlob = new Blob([dataStr], {type: 'application/json'});
-    
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(dataBlob);
-    
-    const fileName = `baseball_game_${gameData.date || 'unknown'}_${gameData.homeTeamName}_vs_${gameData.awayTeamName}.json`;
-    link.download = fileName.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    showMessage('試合結果をダウンロードしました', 'success');
+    saveGameData();
 }
 
 // PDF形式でダウンロード（日本語対応）
@@ -988,37 +1035,13 @@ function downloadGamePDF() {
             
             <div style="margin-bottom: 20px;">
                 <h2 style="font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 5px;">選手別成績</h2>
-                <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10px;">
-                    <tr style="background: #f0f0f0;">
-                        <th style="border: 1px solid #333; padding: 6px;">チーム</th>
-                        <th style="border: 1px solid #333; padding: 6px;">背番号</th>
-                        <th style="border: 1px solid #333; padding: 6px;">選手名</th>
-                        <th style="border: 1px solid #333; padding: 6px;">守備</th>
-                        <th style="border: 1px solid #333; padding: 6px;">打席</th>
-                        <th style="border: 1px solid #333; padding: 6px;">安打</th>
-                        <th style="border: 1px solid #333; padding: 6px;">打率</th>
-                        <th style="border: 1px solid #333; padding: 6px;">打点</th>
-                    </tr>
-                    ${generatePlayerStatsRows()}
-                </table>
+                ${generatePlayerStatsRows()}
             </div>
             
-            ${gameData.atBatHistory && gameData.atBatHistory.length > 0 ? `
             <div style="margin-bottom: 20px;">
                 <h2 style="font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 5px;">打席記録履歴</h2>
-                <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10px;">
-                    <tr style="background: #f0f0f0;">
-                        <th style="border: 1px solid #333; padding: 6px;">イニング</th>
-                        <th style="border: 1px solid #333; padding: 6px;">チーム</th>
-                        <th style="border: 1px solid #333; padding: 6px;">背番号</th>
-                        <th style="border: 1px solid #333; padding: 6px;">選手名</th>
-                        <th style="border: 1px solid #333; padding: 6px;">打席結果</th>
-                        <th style="border: 1px solid #333; padding: 6px;">得点</th>
-                    </tr>
-                    ${generateAtBatHistoryTableRows()}
-                </table>
+                ${generateAtBatHistoryTableRows()}
             </div>
-            ` : ''}
             
             ${gameData.substitutionHistory && gameData.substitutionHistory.length > 0 ? `
             <div style="margin-bottom: 20px;">
@@ -1123,109 +1146,160 @@ function generateScoreRow(team) {
 // 選手成績行を生成
 function generatePlayerStatsRows() {
     let html = '';
-    
-    // ホームチーム選手
-    homePlayers.forEach(player => {
-        const stats = player.stats || {
-            atBats: 0, hits: 0, doubles: 0, triples: 0, homeRuns: 0, 
-            rbis: 0, walks: 0, strikeouts: 0
-        };
-        const average = stats.atBats > 0 ? (stats.hits / stats.atBats).toFixed(3) : '.000';
-        
-        html += `
-            <tr>
-                <td style="border: 1px solid #333; padding: 6px;">${gameData.homeTeamName}</td>
-                <td style="border: 1px solid #333; padding: 6px; text-align: center;">#${player.number}</td>
-                <td style="border: 1px solid #333; padding: 6px;">${player.name}</td>
-                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${player.position || ''}</td>
-                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.atBats}</td>
-                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.hits}</td>
-                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${average}</td>
-                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.rbis}</td>
-            </tr>
-        `;
-    });
-    
-    // アウェイチーム選手
-    awayPlayers.forEach(player => {
-        const stats = player.stats || {
-            atBats: 0, hits: 0, doubles: 0, triples: 0, homeRuns: 0, 
-            rbis: 0, walks: 0, strikeouts: 0
-        };
-        const average = stats.atBats > 0 ? (stats.hits / stats.atBats).toFixed(3) : '.000';
-        
-        html += `
-            <tr>
-                <td style="border: 1px solid #333; padding: 6px;">${gameData.awayTeamName}</td>
-                <td style="border: 1px solid #333; padding: 6px; text-align: center;">#${player.number}</td>
-                <td style="border: 1px solid #333; padding: 6px;">${player.name}</td>
-                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${player.position || ''}</td>
-                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.atBats}</td>
-                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.hits}</td>
-                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${average}</td>
-                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.rbis}</td>
-            </tr>
-        `;
-    });
-    
-    return html;
-}
 
-// 打席履歴行を生成
-function generateAtBatHistoryRows() {
-    let html = '';
-    if (gameData.atBatHistory && gameData.atBatHistory.length > 0) {
-        gameData.atBatHistory.forEach(record => {
-            const inning = record.inning || 1;
-            const half = record.half || '表';
-            const team = record.team || '';
-            const playerNumber = record.playerNumber || '';
-            const playerName = record.playerName || '';
-            const result = record.result || '';
-            const runs = record.runs || 0;
-            
-            html += `
-                <div style="margin: 5px 0; padding: 8px; border-bottom: 1px solid #ddd; background: #f9f9f9;">
-                    <div style="font-weight: bold; color: #333; margin-bottom: 3px;">
-                        ${inning}回${half} - ${team}
-                    </div>
-                    <div style="margin-left: 10px;">
-                        <strong>選手:</strong> #${playerNumber} ${playerName}<br>
-                        <strong>結果:</strong> ${result}<br>
-                        <strong>得点:</strong> ${runs}点
-                    </div>
-                </div>
-            `;
-        });
-    }
-    return html || '<div style="padding: 10px;">打席記録はありません</div>';
+    // 先攻チームの選手別成績
+    html += `
+        <h3 style="font-size: 16px; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">${gameData.awayTeamName} 選手別打撃成績</h3>
+        <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10px;">
+            <tr style="background: #f0f0f0;">
+                <th style="border: 1px solid #333; padding: 6px;">背番号</th>
+                <th style="border: 1px solid #333; padding: 6px;">選手名</th>
+                <th style="border: 1px solid #333; padding: 6px;">守備</th>
+                <th style="border: 1px solid #333; padding: 6px;">打席</th>
+                <th style="border: 1px solid #333; padding: 6px;">安打</th>
+                <th style="border: 1px solid #333; padding: 6px;">打率</th>
+                <th style="border: 1px solid #333; padding: 6px;">打点</th>
+            </tr>
+    `;
+    awayPlayers.sort((a, b) => a.number - b.number).forEach(player => {
+        const stats = player.stats || {
+            atBats: 0, hits: 0, rbis: 0
+        };
+        const average = stats.atBats > 0 ? (stats.hits / stats.atBats).toFixed(3) : '.000';
+        
+        html += `
+            <tr>
+                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${player.number}</td>
+                <td style="border: 1px solid #333; padding: 6px;">${player.name}</td>
+                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${getPositionFullName(player.position) || ''}</td>
+                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.atBats}</td>
+                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.hits}</td>
+                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${average}</td>
+                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.rbis}</td>
+            </tr>
+        `;
+    });
+    html += '</table>';
+
+    // 後攻チームの選手別成績
+    html += `
+        <h3 style="font-size: 16px; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">${gameData.homeTeamName} 選手別打撃成績</h3>
+        <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10px;">
+            <tr style="background: #f0f0f0;">
+                <th style="border: 1px solid #333; padding: 6px;">背番号</th>
+                <th style="border: 1px solid #333; padding: 6px;">選手名</th>
+                <th style="border: 1px solid #333; padding: 6px;">守備</th>
+                <th style="border: 1px solid #333; padding: 6px;">打席</th>
+                <th style="border: 1px solid #333; padding: 6px;">安打</th>
+                <th style="border: 1px solid #333; padding: 6px;">打率</th>
+                <th style="border: 1px solid #333; padding: 6px;">打点</th>
+            </tr>
+    `;
+    homePlayers.sort((a, b) => a.number - b.number).forEach(player => {
+        const stats = player.stats || {
+            atBats: 0, hits: 0, rbis: 0
+        };
+        const average = stats.atBats > 0 ? (stats.hits / stats.atBats).toFixed(3) : '.000';
+        
+        html += `
+            <tr>
+                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${player.number}</td>
+                <td style="border: 1px solid #333; padding: 6px;">${player.name}</td>
+                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${getPositionFullName(player.position) || ''}</td>
+                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.atBats}</td>
+                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.hits}</td>
+                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${average}</td>
+                <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.rbis}</td>
+            </tr>
+        `;
+    });
+    html += '</table>';
+
+    return html;
 }
 
 // 打席履歴テーブル行を生成
 function generateAtBatHistoryTableRows() {
     let html = '';
-    if (gameData.atBatHistory && gameData.atBatHistory.length > 0) {
-        gameData.atBatHistory.forEach(record => {
+    const allPlayers = [...homePlayers, ...awayPlayers];
+
+    // 先攻チームの打席履歴
+    const awayTeamHistory = gameData.atBatHistory.filter(record => record.battingTeam === 'away');
+    if (awayTeamHistory.length > 0) {
+        html += `
+            <h3 style="font-size: 16px; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">${gameData.awayTeamName} 打席記録履歴</h3>
+            <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10px;">
+                <tr style="background: #f0f0f0;">
+                    <th style="border: 1px solid #333; padding: 6px;">イニング</th>
+                    <th style="border: 1px solid #333; padding: 6px;">背番号</th>
+                    <th style="border: 1px solid #333; padding: 6px;">選手名</th>
+                    <th style="border: 1px solid #333; padding: 6px;">打席結果</th>
+                    <th style="border: 1px solid #333; padding: 6px;">得点</th>
+                </tr>
+        `;
+        awayTeamHistory.forEach(record => {
             const inning = record.inning || 1;
             const half = record.isTop ? '表' : '裏';
-            const team = record.battingTeam === 'home' ? gameData.homeTeamName : gameData.awayTeamName;
-            const playerNumber = record.player ? record.player.number : '';
-            const playerName = record.player ? record.player.name : '';
+            const player = allPlayers.find(p => p.id === record.playerId);
+            const playerNumber = player ? player.number : '';
+            const playerName = player ? player.name : '';
             const result = getResultText(record.result) || record.result || '';
             const runs = record.runs || 0;
-            
+
             html += `
                 <tr>
                     <td style="border: 1px solid #333; padding: 6px; text-align: center;">${inning}回${half}</td>
-                    <td style="border: 1px solid #333; padding: 6px;">${team}</td>
-                    <td style="border: 1px solid #333; padding: 6px; text-align: center;">#${playerNumber}</td>
+                    <td style="border: 1px solid #333; padding: 6px; text-align: center;">${playerNumber}</td>
                     <td style="border: 1px solid #333; padding: 6px;">${playerName}</td>
                     <td style="border: 1px solid #333; padding: 6px;">${result}</td>
                     <td style="border: 1px solid #333; padding: 6px; text-align: center;">${runs}点</td>
                 </tr>
             `;
         });
+        html += '</table>';
+    } else {
+        html += `<h3 style="font-size: 16px; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">${gameData.awayTeamName} 打席記録履歴</h3><p style="padding: 10px;">打席記録はありません</p>`;
     }
+
+
+    // 後攻チームの打席履歴
+    const homeTeamHistory = gameData.atBatHistory.filter(record => record.battingTeam === 'home');
+    if (homeTeamHistory.length > 0) {
+        html += `
+            <h3 style="font-size: 16px; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">${gameData.homeTeamName} 打席記録履歴</h3>
+            <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10px;">
+                <tr style="background: #f0f0f0;">
+                    <th style="border: 1px solid #333; padding: 6px;">イニング</th>
+                    <th style="border: 1px solid #333; padding: 6px;">背番号</th>
+                    <th style="border: 1px solid #333; padding: 6px;">選手名</th>
+                    <th style="border: 1px solid #333; padding: 6px;">打席結果</th>
+                    <th style="border: 1px solid #333; padding: 6px;">得点</th>
+                </tr>
+        `;
+        homeTeamHistory.forEach(record => {
+            const inning = record.inning || 1;
+            const half = record.isTop ? '表' : '裏';
+            const player = allPlayers.find(p => p.id === record.playerId);
+            const playerNumber = player ? player.number : '';
+            const playerName = player ? player.name : '';
+            const result = getResultText(record.result) || record.result || '';
+            const runs = record.runs || 0;
+
+            html += `
+                <tr>
+                    <td style="border: 1px solid #333; padding: 6px; text-align: center;">${inning}回${half}</td>
+                    <td style="border: 1px solid #333; padding: 6px; text-align: center;">${playerNumber}</td>
+                    <td style="border: 1px solid #333; padding: 6px;">${playerName}</td>
+                    <td style="border: 1px solid #333; padding: 6px;">${result}</td>
+                    <td style="border: 1px solid #333; padding: 6px; text-align: center;">${runs}点</td>
+                </tr>
+            `;
+        });
+        html += '</table>';
+    } else {
+        html += `<h3 style="font-size: 16px; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">${gameData.homeTeamName} 打席記録履歴</h3><p style="padding: 10px;">打席記録はありません</p>`;
+    }
+
     return html;
 }
 
@@ -1243,7 +1317,7 @@ function generateSubstitutionHistoryRows() {
             html += `
                 <div style="margin: 5px 0; padding: 5px; border-bottom: 1px solid #ddd;">
                     <strong>${inning}回${half}</strong> - 
-                    ${outPlayer} → ${inPlayer} (${position})
+                    ${outPlayer} → ${inPlayer} (${getPositionFullName(position)})
                 </div>
             `;
         });
@@ -1278,6 +1352,7 @@ function makeScoreEditable() {
                         gameData.awayScore[inning - 1] = newValue;
                     }
                     updateDisplay();
+                    saveGameData();
                 });
                 
                 input.addEventListener('keypress', function(e) {
@@ -1294,10 +1369,20 @@ function makeScoreEditable() {
 function toggleBase(baseNumber) {
     gameData.bases[baseNumber - 1] = !gameData.bases[baseNumber - 1];
     updateDisplay();
+    saveGameData();
 }
 
 // ページ読み込み完了後にスコア編集機能を有効化
 document.addEventListener('DOMContentLoaded', function() {
+    initDB();
+    // 今日の日付を設定
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('gameDate').value = today;
+    
+    // イベントリスナー設定
+    setupEventListeners();
+    updateDisplay();
+    updateTeamNames();
     setTimeout(makeScoreEditable, 100);
     setTimeout(updateBattingTeamSelect, 200);
     
@@ -1321,3 +1406,358 @@ document.addEventListener('DOMContentLoaded', function() {
         updateDisplay();
     });
 });
+
+let currentEditingAtBatId = null;
+
+function editAtBat(atBatId) {
+    console.log("editAtBat called with id: ", atBatId);
+    const atBatRecord = gameData.atBatHistory.find(record => record.id === atBatId);
+    if (!atBatRecord) {
+        showMessage('編集対象の打席記録が見つかりません', 'error');
+        console.error("AtBat record not found for editing: ", atBatId);
+        return;
+    }
+
+    currentEditingAtBatId = atBatId;
+
+    const allPlayers = [...homePlayers, ...awayPlayers];
+    const player = allPlayers.find(p => p.id === atBatRecord.playerId);
+    const teamName = atBatRecord.battingTeam === 'home' ? gameData.homeTeamName : gameData.awayTeamName;
+
+    document.getElementById('editAtBatInfo').innerHTML = `
+        <p><strong>選手:</strong> ${teamName} ${player.number} ${player.name}</p>
+        <p><strong>イニング:</strong> ${atBatRecord.inning}回${atBatRecord.isTop ? '表' : '裏'}</p>
+    `;
+
+    document.getElementById('editAtBatResult').value = atBatRecord.result;
+    document.getElementById('editRunsScored').value = atBatRecord.runs;
+    document.getElementById('editAtBatModal').classList.add('visible');
+}
+
+function closeEditAtBatModal() {
+    document.getElementById('editAtBatModal').classList.remove('visible');
+    currentEditingAtBatId = null;
+}
+
+function confirmEditAtBat() {
+    if (currentEditingAtBatId === null) return;
+
+    const atBatRecord = gameData.atBatHistory.find(record => record.id === currentEditingAtBatId);
+    if (!atBatRecord) {
+        showMessage('編集対象の打席記録が見つかりません', 'error');
+        return;
+    }
+
+    const allPlayers = [...homePlayers, ...awayPlayers];
+    const player = allPlayers.find(p => p.id === atBatRecord.playerId);
+
+    // 1. 古い記録を元に戻す
+    updatePlayerStats(player, atBatRecord.result, atBatRecord.runs, true);
+    const oldInningIndex = atBatRecord.inning - 1;
+    if (atBatRecord.battingTeam === 'home') {
+        gameData.homeScore[oldInningIndex] -= atBatRecord.runs;
+    } else {
+        gameData.awayScore[oldInningIndex] -= atBatRecord.runs;
+    }
+
+    // 2. 新しい値を取得して記録を更新
+    const newResult = document.getElementById('editAtBatResult').value;
+    const newRuns = parseInt(document.getElementById('editRunsScored').value) || 0;
+    
+    atBatRecord.result = newResult;
+    atBatRecord.runs = newRuns;
+
+    // 3. 新しい記録を反映
+    updatePlayerStats(player, newResult, newRuns, false);
+    const newInningIndex = atBatRecord.inning - 1;
+     if (atBatRecord.battingTeam === 'home') {
+        gameData.homeScore[newInningIndex] += newRuns;
+    } else {
+        gameData.awayScore[newInningIndex] += newRuns;
+    }
+
+    // 表示を更新
+    updateDisplay();
+    updateAtBatHistory();
+    updatePlayerStatsDisplay();
+
+    closeEditAtBatModal();
+    showMessage('打席記録を更新しました', 'success');
+    saveGameData();
+}
+
+function deleteAtBat() {
+    if (currentEditingAtBatId === null) return;
+    
+    if (!confirm('この打席記録を削除しますか？この操作は元に戻せません。')) {
+        return;
+    }
+
+    const atBatIndex = gameData.atBatHistory.findIndex(record => record.id === currentEditingAtBatId);
+    if (atBatIndex === -1) {
+        showMessage('削除対象の打席記録が見つかりません', 'error');
+        return;
+    }
+
+    const atBatRecord = gameData.atBatHistory[atBatIndex];
+    const allPlayers = [...homePlayers, ...awayPlayers];
+    const player = allPlayers.find(p => p.id === atBatRecord.playerId);
+
+    // 統計とスコアを元に戻す
+    updatePlayerStats(player, atBatRecord.result, atBatRecord.runs, true);
+    const inningIndex = atBatRecord.inning - 1;
+    if (atBatRecord.battingTeam === 'home') {
+        gameData.homeScore[inningIndex] -= atBatRecord.runs;
+    } else {
+        gameData.awayScore[inningIndex] -= atBatRecord.runs;
+    }
+
+    // 履歴から削除
+    gameData.atBatHistory.splice(atBatIndex, 1);
+
+    // 表示を更新
+    updateDisplay();
+    updateAtBatHistory();
+    updatePlayerStatsDisplay();
+
+    closeEditAtBatModal();
+    showMessage('打席記録を削除しました', 'success');
+    saveGameData();
+}
+
+function savePlayerToMaster(teamName, player) {
+    if (!db) return;
+    const transaction = db.transaction([playerStoreName], "readwrite");
+    const store = transaction.objectStore(playerStoreName);
+    const request = store.put({ teamName: teamName, ...player });
+
+    request.onerror = function(event) {
+        console.error("Error saving player to master: " + event.target.errorCode);
+    };
+}
+
+function openPlayerMasterModal() {
+    const team = document.getElementById('playerTeam').value;
+    const teamName = team === 'home' ? gameData.homeTeamName : gameData.awayTeamName;
+    
+    if (!db) {
+        showMessage('データベースが初期化されていません。', 'error');
+        return;
+    }
+
+    const transaction = db.transaction([playerStoreName], "readonly");
+    const store = transaction.objectStore(playerStoreName);
+    const index = store.index("teamName");
+    const request = index.getAll(teamName);
+
+    request.onsuccess = function(event) {
+        const players = event.target.result;
+        const listDiv = document.getElementById('playerMasterList');
+        listDiv.innerHTML = '';
+
+        if (players.length === 0) {
+            listDiv.innerHTML = '<p>このチームの登録選手はいません。</p>';
+        } else {
+            players.sort((a, b) => a.number - b.number).forEach(player => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'player-master-item';
+                playerDiv.innerHTML = `<span>${player.number} ${player.name}</span>`;
+                playerDiv.onclick = () => addPlayerFromMaster(player);
+                listDiv.appendChild(playerDiv);
+            });
+        }
+        document.getElementById('playerMasterModal').classList.add('visible');
+    };
+
+    request.onerror = function(event) {
+        showMessage('選手マスタの読み込みに失敗しました。', 'error');
+    };
+}
+
+function closePlayerMasterModal() {
+    document.getElementById('playerMasterModal').classList.remove('visible');
+}
+
+function addPlayerFromMaster(player) {
+    const team = document.getElementById('playerTeam').value;
+    const targetPlayers = team === 'home' ? homePlayers : awayPlayers;
+
+    if (targetPlayers.some(p => p.number === player.number)) {
+        showMessage(`背番号 ${player.number} は既に追加されています。`, 'error');
+        return;
+    }
+
+    const newPlayer = {
+        id: Date.now(),
+        name: player.name,
+        number: player.number,
+        position: '', // ポジションは別途設定
+        team: team,
+        isActive: true,
+        stats: {
+            atBats: 0, hits: 0, doubles: 0, triples: 0, homeRuns: 0,
+            walks: 0, strikeouts: 0, rbis: 0
+        }
+    };
+
+    targetPlayers.push(newPlayer);
+    updatePlayersDisplay();
+    updateBatterSelect();
+    showMessage(`選手 ${player.number} ${player.name} を追加しました。`, 'success');
+    closePlayerMasterModal();
+    saveGameData();
+}
+
+function addSamplePlayers(targetTeam) {
+    let playersArray;
+    let teamNameDisplay;
+
+    if (targetTeam === 'home') {
+        playersArray = homePlayers;
+        teamNameDisplay = gameData.homeTeamName;
+    } else if (targetTeam === 'away') {
+        playersArray = awayPlayers;
+        teamNameDisplay = gameData.awayTeamName;
+    } else {
+        showMessage('無効なチーム指定です。', 'error');
+        return;
+    }
+
+    playersArray.splice(0, playersArray.length); // 既存の選手をクリア
+
+    for (let i = 1; i <= 9; i++) {
+        const player = {
+            id: Date.now() + i,
+            name: `${teamNameDisplay}選手${i}`,
+            number: i,
+            position: '',
+            team: targetTeam,
+            isActive: true,
+            stats: {
+                atBats: 0, hits: 0, doubles: 0, triples: 0, homeRuns: 0,
+                walks: 0, strikeouts: 0, rbis: 0
+            }
+        };
+        playersArray.push(player);
+    }
+    updatePlayersDisplay();
+    updateBatterSelect();
+    showMessage(`${teamNameDisplay}にサンプル選手9名を追加しました。`, 'success');
+    saveGameData();
+}
+
+// gameDataをIndexedDBに保存
+function saveGameData() {
+    if (!db) return;
+    const transaction = db.transaction([gameDataStoreName], "readwrite");
+    const store = transaction.objectStore(gameDataStoreName);
+    
+    // gameDataオブジェクトにhomePlayersとawayPlayersを直接含める
+    const dataToSave = { 
+        ...gameData, 
+        homePlayers: homePlayers, 
+        awayPlayers: awayPlayers 
+    };
+
+    const request = store.put(dataToSave);
+
+    request.onerror = function(event) {
+        console.error("Error saving game data: " + event.target.errorCode);
+    };
+    request.onsuccess = function() {
+        console.log("Game data saved.");
+    };
+}
+
+// gameDataをIndexedDBからロード
+function loadGameData() {
+    if (!db) return;
+    const transaction = db.transaction([gameDataStoreName], "readonly");
+    const store = transaction.objectStore(gameDataStoreName);
+    const request = store.get("current_game");
+
+    request.onsuccess = function(event) {
+        const loadedData = event.target.result;
+        if (loadedData) {
+            // ロードしたデータをgameDataにマージ
+            Object.assign(gameData, loadedData);
+            // 選手データも復元
+            homePlayers = loadedData.homePlayers || [];
+            awayPlayers = loadedData.awayPlayers || [];
+
+            // UIを更新
+            updateDisplay();
+            updateTeamNames(); // チーム名表示も更新
+            updatePlayersDisplay();
+            updateBatterSelect();
+            updateAtBatHistory();
+            updatePlayerStatsDisplay();
+            updateSubstitutionHistory();
+            showMessage('前回の試合データをロードしました', 'success');
+        } else {
+            console.log("No saved game data found.");
+        }
+    };
+
+    request.onerror = function(event) {
+        console.error("Error loading game data: " + event.target.errorCode);
+    };
+}
+
+function resetGame() {
+    if (confirm('現在の試合データをすべてリセットしますか？この操作は元に戻せません。')) {
+        // gameDataを初期状態に戻す
+        gameData = {
+            id: "current_game",
+            date: '',
+            location: '',
+            homeTeamName: '我がチーム',
+            awayTeamName: '相手チーム',
+            status: 'ongoing',
+            result: '',
+            homeScore: [0, 0, 0, 0, 0, 0, 0],
+            awayScore: [0, 0, 0, 0, 0, 0, 0],
+            currentInning: 1,
+            isTop: true,
+            outs: 0,
+            bases: [false, false, false],
+            atBatHistory: [],
+            substitutionHistory: []
+        };
+        homePlayers = [];
+        awayPlayers = [];
+
+        // IndexedDBから試合データを削除
+        if (db) {
+            const transaction = db.transaction([gameDataStoreName], "readwrite");
+            const store = transaction.objectStore(gameDataStoreName);
+            store.delete("current_game");
+            transaction.oncomplete = function() {
+                console.log("Game data deleted from IndexedDB.");
+                // UIを初期状態に更新
+                updateDisplay();
+                updateTeamNames();
+                updatePlayersDisplay();
+                updateBatterSelect();
+                updateAtBatHistory();
+                updatePlayerStatsDisplay();
+                updateSubstitutionHistory();
+                showMessage('試合データをリセットしました', 'success');
+            };
+            transaction.onerror = function(event) {
+                console.error("Error deleting game data: " + event.target.errorCode);
+                showMessage('試合データのリセットに失敗しました', 'error');
+            };
+        } else {
+            // DBが初期化されていない場合でもUIはリセット
+            updateDisplay();
+            updateTeamNames();
+            updatePlayersDisplay();
+            updateBatterSelect();
+            updateAtBatHistory();
+            updatePlayerStatsDisplay();
+            updateSubstitutionHistory();
+            showMessage('試合データをリセットしました', 'success');
+        }
+    }
+}

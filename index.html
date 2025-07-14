@@ -17,12 +17,12 @@
             <h2>チーム設定</h2>
             <div class="team-config">
                 <div class="form-group">
-                    <label for="homeTeamName">後攻チーム:</label>
-                    <input type="text" id="homeTeamName" placeholder="後攻チーム名" value="我がチーム">
+                    <label for="awayTeamName">先攻チーム:</label>
+                    <input type="text" id="awayTeamName" placeholder="チーム名" value="">
                 </div>
                 <div class="form-group">
-                    <label for="awayTeamName">先攻チーム:</label>
-                    <input type="text" id="awayTeamName" placeholder="先攻チーム名" value="相手チーム">
+                    <label for="homeTeamName">後攻チーム:</label>
+                    <input type="text" id="homeTeamName" placeholder="チーム名" value="">
                 </div>
                 <div class="form-group">
                     <label for="gameDate">試合日:</label>
@@ -54,8 +54,8 @@
                     <option value="draw">引き分け</option>
                 </select>
             </div>
-            <button onclick="downloadGameData()">📥 JSON形式ダウンロード</button>
             <button onclick="downloadGamePDF()">📄 PDF形式ダウンロード</button>
+            <button onclick="resetGame()">試合をリセット</button>
         </section>
 
         <!-- 選手登録 -->
@@ -64,8 +64,8 @@
             <div class="form-group">
                 <label for="playerTeam">チーム:</label>
                 <select id="playerTeam">
-                    <option value="home">後攻チーム</option>
                     <option value="away">先攻チーム</option>
+                    <option value="home">後攻チーム</option>
                 </select>
             </div>
             <div class="form-group">
@@ -74,34 +74,38 @@
             </div>
             <div class="form-group">
                 <label for="playerNumber">背番号:</label>
-                <input type="number" id="playerNumber" min="1" max="99" placeholder="1-99">
+                <input type="number" id="playerNumber" min="0" max="99" placeholder="0-99">
             </div>
+            <div id="addPlayerErrorDisplay" class="message-container"></div>
             <div class="form-group">
                 <label for="playerPosition">守備位置:</label>
                 <select id="playerPosition">
                     <option value="">選択してください</option>
-                    <option value="P">投手 (P)</option>
-                    <option value="C">捕手 (C)</option>
-                    <option value="1B">一塁手 (1B)</option>
-                    <option value="2B">二塁手 (2B)</option>
-                    <option value="3B">三塁手 (3B)</option>
-                    <option value="SS">遊撃手 (SS)</option>
-                    <option value="LF">左翼手 (LF)</option>
-                    <option value="CF">中堅手 (CF)</option>
-                    <option value="RF">右翼手 (RF)</option>
-                    <option value="DH">指名打者 (DH)</option>
+                    <option value="P">ピッチャー</option>
+                    <option value="C">キャッチャー</option>
+                    <option value="1B">ファースト</option>
+                    <option value="2B">セカンド</option>
+                    <option value="3B">サード</option>
+                    <option value="SS">ショート</option>
+                    <option value="LF">レフト</option>
+                    <option value="CF">センター</option>
+                    <option value="RF">ライト</option>
+                    <option value="DH">指名打者</option>
                 </select>
             </div>
             <button onclick="addPlayer()">選手追加</button>
+            <button onclick="openPlayerMasterModal()">選手マスタから追加</button>
+            <button onclick="addSamplePlayers('home')">後攻チームにサンプル選手を登録</button>
+            <button onclick="addSamplePlayers('away')">先攻チームにサンプル選手を登録</button>
             
             <div class="players-list">
                 <div class="team-players">
-                    <h3 id="homeTeamPlayersTitle">後攻チーム選手</h3>
-                    <div id="homePlayersList"></div>
-                </div>
-                <div class="team-players">
                     <h3 id="awayTeamPlayersTitle">先攻チーム選手</h3>
                     <div id="awayPlayersList"></div>
+                </div>
+                <div class="team-players">
+                    <h3 id="homeTeamPlayersTitle">後攻チーム選手</h3>
+                    <div id="homePlayersList"></div>
                 </div>
             </div>
         </section>
@@ -213,9 +217,11 @@
                     <option value="double">二塁打</option>
                     <option value="triple">三塁打</option>
                     <option value="homerun">ホームラン</option>
+                    <option value="runningHomerun">ランニングホームラン</option>
                     <option value="walk">フォアボール</option>
                     <option value="hbp">デッドボール</option>
                     <option value="strikeout">三振</option>
+                    <option value="strikeoutWildPitch">振り逃げ</option>
                     <option value="groundout">ゴロアウト</option>
                     <option value="flyout">フライアウト</option>
                     <option value="error">エラー</option>
@@ -249,7 +255,7 @@
     </div>
 
     <!-- 選手交代モーダル -->
-    <div id="substitutionModal" class="modal" style="display: none;">
+    <div id="substitutionModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeSubstitutionModal()">&times;</span>
             <h3>選手交代</h3>
@@ -260,22 +266,23 @@
             </div>
             <div class="form-group">
                 <label for="newPlayerNumber">背番号:</label>
-                <input type="number" id="newPlayerNumber" min="1" max="99" placeholder="1-99">
+                <input type="number" id="newPlayerNumber" min="0" max="99" placeholder="0-99">
             </div>
+            <div id="substitutionErrorDisplay" class="message-container"></div>
             <div class="form-group">
                 <label for="newPlayerPosition">守備位置:</label>
                 <select id="newPlayerPosition">
                     <option value="">選択してください</option>
-                    <option value="P">投手 (P)</option>
-                    <option value="C">捕手 (C)</option>
-                    <option value="1B">一塁手 (1B)</option>
-                    <option value="2B">二塁手 (2B)</option>
-                    <option value="3B">三塁手 (3B)</option>
-                    <option value="SS">遊撃手 (SS)</option>
-                    <option value="LF">左翼手 (LF)</option>
-                    <option value="CF">中堅手 (CF)</option>
-                    <option value="RF">右翼手 (RF)</option>
-                    <option value="DH">指名打者 (DH)</option>
+                    <option value="P">ピッチャー</option>
+                    <option value="C">キャッチャー</option>
+                    <option value="1B">ファースト</option>
+                    <option value="2B">セカンド</option>
+                    <option value="3B">サード</option>
+                    <option value="SS">ショート</option>
+                    <option value="LF">レフト</option>
+                    <option value="CF">センター</option>
+                    <option value="RF">ライト</option>
+                    <option value="DH">指名打者</option>
                 </select>
             </div>
             <div class="modal-buttons">
@@ -286,7 +293,7 @@
     </div>
 
     <!-- 選手編集モーダル -->
-    <div id="editPlayerModal" class="modal" style="display: none;">
+    <div id="editPlayerModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeEditPlayerModal()">&times;</span>
             <h3>選手情報編集</h3>
@@ -296,28 +303,77 @@
             </div>
             <div class="form-group">
                 <label for="editPlayerNumber">背番号:</label>
-                <input type="number" id="editPlayerNumber" min="1" max="99" placeholder="1-99">
+                <input type="number" id="editPlayerNumber" min="0" max="99" placeholder="0-99">
             </div>
+            <div id="editPlayerErrorDisplay" class="message-container"></div>
             <div class="form-group">
                 <label for="editPlayerPosition">守備位置:</label>
                 <select id="editPlayerPosition">
                     <option value="">選択してください</option>
-                    <option value="P">投手 (P)</option>
-                    <option value="C">捕手 (C)</option>
-                    <option value="1B">一塁手 (1B)</option>
-                    <option value="2B">二塁手 (2B)</option>
-                    <option value="3B">三塁手 (3B)</option>
-                    <option value="SS">遊撃手 (SS)</option>
-                    <option value="LF">左翼手 (LF)</option>
-                    <option value="CF">中堅手 (CF)</option>
-                    <option value="RF">右翼手 (RF)</option>
-                    <option value="DH">指名打者 (DH)</option>
+                    <option value="P">ピッチャー</option>
+                    <option value="C">キャッチャー</option>
+                    <option value="1B">ファースト</option>
+                    <option value="2B">セカンド</option>
+                    <option value="3B">サード</option>
+                    <option value="SS">ショート</option>
+                    <option value="LF">レフト</option>
+                    <option value="CF">センター</option>
+                    <option value="RF">ライト</option>
+                    <option value="DH">指名打者</option>
                 </select>
             </div>
             <div class="modal-buttons">
                 <button onclick="confirmEditPlayer()">保存</button>
                 <button onclick="deletePlayer()">削除</button>
                 <button onclick="closeEditPlayerModal()">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 打席編集モーダル -->
+    <div id="editAtBatModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEditAtBatModal()">&times;</span>
+            <h3>打席結果編集</h3>
+            <div id="editAtBatInfo"></div>
+            <input type="hidden" id="editingAtBatId">
+            <div class="form-group">
+                <label for="editAtBatResult">打席結果:</label>
+                <select id="editAtBatResult">
+                    <option value="">選択してください</option>
+                    <option value="single">単打</option>
+                    <option value="double">二塁打</option>
+                    <option value="triple">三塁打</option>
+                    <option value="homerun">ホームラン</option>
+                    <option value="runningHomerun">ランニングホームラン</option>
+                    <option value="walk">フォアボール</option>
+                    <option value="hbp">デッドボール</option>
+                    <option value="strikeout">三振</option>
+                    <option value="strikeoutWildPitch">振り逃げ</option>
+                    <option value="groundout">ゴロアウト</option>
+                    <option value="flyout">フライアウト</option>
+                    <option value="error">エラー</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="editRunsScored">得点数:</label>
+                <input type="number" id="editRunsScored" min="0" max="4" value="0">
+            </div>
+            <div class="modal-buttons">
+                <button onclick="confirmEditAtBat()">保存</button>
+                <button onclick="closeEditAtBatModal()">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 選手マスタ選択モーダル -->
+    <div id="playerMasterModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closePlayerMasterModal()">&times;</span>
+            <h3>選手マスタから追加</h3>
+            <div id="playerMasterList"></div>
+            <div class="modal-buttons">
+                <button onclick="closePlayerMasterModal()">閉じる</button>
             </div>
         </div>
     </div>
