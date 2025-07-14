@@ -5,30 +5,33 @@ const playerStoreName = "playerMaster";
 const gameDataStoreName = "gameData"; // 新しいストア名
 
 function initDB() {
-    const request = indexedDB.open(dbName, 2); // バージョンを2に上げる
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(dbName, 2); // バージョンを2に上げる
 
-    request.onerror = function(event) {
-        console.error("Database error: " + event.target.errorCode);
-    };
+        request.onerror = function(event) {
+            console.error("Database error: " + event.target.errorCode);
+            reject(event.target.errorCode);
+        };
 
-    request.onsuccess = function(event) {
-        db = event.target.result;
-        console.log("Database initialized");
-        loadGameData(); // データベース初期化後にゲームデータをロード
-    };
+        request.onsuccess = function(event) {
+            db = event.target.result;
+            console.log("Database initialized");
+            resolve();
+        };
 
-    request.onupgradeneeded = function(event) {
-        let db = event.target.result;
-        // 既存のplayerMasterストア
-        if (!db.objectStoreNames.contains(playerStoreName)) {
-            db.createObjectStore(playerStoreName, { keyPath: ['teamName', 'number'] });
-        }
-        // 新しいgameDataストア
-        if (!db.objectStoreNames.contains(gameDataStoreName)) {
-            db.createObjectStore(gameDataStoreName, { keyPath: "id" });
-        }
-        console.log("Object store created/updated");
-    };
+        request.onupgradeneeded = function(event) {
+            let db = event.target.result;
+            // 既存のplayerMasterストア
+            if (!db.objectStoreNames.contains(playerStoreName)) {
+                db.createObjectStore(playerStoreName, { keyPath: ['teamName', 'number'] });
+            }
+            // 新しいgameDataストア
+            if (!db.objectStoreNames.contains(gameDataStoreName)) {
+                db.createObjectStore(gameDataStoreName, { keyPath: "id" });
+            }
+            console.log("Object store created/updated");
+        };
+    });
 }
 
 // グローバル変数（セッション中のみ保持）
@@ -53,8 +56,8 @@ let gameData = {
 };
 
 // ページ読み込み時の初期化
-document.addEventListener('DOMContentLoaded', function() {
-    initDB();
+document.addEventListener('DOMContentLoaded', async function() {
+    await initDB(); // DBの初期化を待つ
     // 今日の日付を設定
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('gameDate').value = today;
@@ -63,6 +66,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     updateDisplay();
     updateTeamNames();
+    loadGameData(); // DB初期化後にゲームデータをロード
 });
 
 // イベントリスナー設定
@@ -1373,8 +1377,8 @@ function toggleBase(baseNumber) {
 }
 
 // ページ読み込み完了後にスコア編集機能を有効化
-document.addEventListener('DOMContentLoaded', function() {
-    initDB();
+document.addEventListener('DOMContentLoaded', async function() {
+    await initDB();
     // 今日の日付を設定
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('gameDate').value = today;
@@ -1536,12 +1540,19 @@ function savePlayerToMaster(teamName, player) {
     };
 }
 
-function openPlayerMasterModal() {
+async function openPlayerMasterModal() {
     const team = document.getElementById('playerTeam').value;
     const teamName = team === 'home' ? gameData.homeTeamName : gameData.awayTeamName;
     
     if (!db) {
-        showMessage('データベースが初期化されていません。', 'error');
+        showMessage('データベースが初期化されていません。しばらくお待ちください。', 'error', 'playerMasterModalErrorDisplay');
+        // DB初期化を待ってから再試行
+        try {
+            await initDB();
+            openPlayerMasterModal(); // 再帰呼び出し
+        } catch (error) {
+            showMessage('データベースの初期化に失敗しました。', 'error', 'playerMasterModalErrorDisplay');
+        }
         return;
     }
 
@@ -1557,6 +1568,7 @@ function openPlayerMasterModal() {
 
         if (players.length === 0) {
             listDiv.innerHTML = '<p>このチームの登録選手はいません。</p>';
+            showMessage('選手マスタに選手がいません。選手を追加してください。', 'info', 'playerMasterModalErrorDisplay');
         } else {
             players.sort((a, b) => a.number - b.number).forEach(player => {
                 const playerDiv = document.createElement('div');
@@ -1565,17 +1577,23 @@ function openPlayerMasterModal() {
                 playerDiv.onclick = () => addPlayerFromMaster(player);
                 listDiv.appendChild(playerDiv);
             });
+            showMessage('選手マスタから選手を選択してください。', 'success', 'playerMasterModalErrorDisplay');
         }
         document.getElementById('playerMasterModal').classList.add('visible');
     };
 
     request.onerror = function(event) {
-        showMessage('選手マスタの読み込みに失敗しました。', 'error');
+        showMessage('選手マスタの読み込みに失敗しました。', 'error', 'playerMasterModalErrorDisplay');
     };
 }
 
 function closePlayerMasterModal() {
     document.getElementById('playerMasterModal').classList.remove('visible');
+    // エラーメッセージをクリア
+    const errorDisplay = document.getElementById('playerMasterModalErrorDisplay');
+    if (errorDisplay) {
+        errorDisplay.innerHTML = '';
+    }
 }
 
 function addPlayerFromMaster(player) {
@@ -1583,7 +1601,7 @@ function addPlayerFromMaster(player) {
     const targetPlayers = team === 'home' ? homePlayers : awayPlayers;
 
     if (targetPlayers.some(p => p.number === player.number)) {
-        showMessage(`背番号 ${player.number} は既に追加されています。`, 'error');
+        showMessage(`背番号 ${player.number} は既に追加されています。`, 'error', 'playerMasterModalErrorDisplay');
         return;
     }
 
