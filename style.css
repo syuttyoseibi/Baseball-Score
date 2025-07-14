@@ -37,7 +37,8 @@ header h1 {
 
 .header-icon {
     margin-right: 15px;
-    color: #fff; /* アイコンの色を白に固定 */
+    color: transparent; /* 絵文字本来の色を透明にする */
+    text-shadow: 0 0 0 #fff; /* text-shadowで白く塗りつぶす */
 }
 
 section {
