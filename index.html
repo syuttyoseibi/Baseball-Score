@@ -94,10 +94,14 @@
                     <option value="DH">指名打者</option>
                 </select>
             </div>
-            <button onclick="addPlayer()">選手追加</button>
-            <button onclick="openPlayerMasterModal()">選手マスタから追加</button>
-            <button onclick="addSamplePlayers('home')">後攻チームにサンプル選手を登録</button>
-            <button onclick="addSamplePlayers('away')">先攻チームにサンプル選手を登録</button>
+            <div class="button-group">
+                <button onclick="addPlayer()">選手追加</button>
+                <button onclick="openPlayerMasterModal()">選手マスタから追加</button>
+            </div>
+            <div class="button-group">
+                <button onclick="addSamplePlayers('home')">後攻チームにサンプル選手を登録</button>
+                <button onclick="addSamplePlayers('away')">先攻チームにサンプル選手を登録</button>
+            </div>
             
             <div class="players-list">
                 <div class="team-players">

@@ -650,7 +650,25 @@ button:active {
     padding-right: 10px; /* スクロールバーとの隙間 */
 }
 
-/* 成功・エラーメッセージ */
+.button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+    justify-content: center; /* 中央寄せ */
+}
+
+.button-group button {
+    flex-grow: 1;
+    min-width: 150px; /* ボタンの最小幅 */
+}
+
+@media (max-width: 480px) {
+    .button-group button {
+        width: 100%; /* スマホではボタンを縦に並べる */
+        min-width: unset;
+    }
+}
 .message {
     padding: 10px;
     border-radius: 5px;
