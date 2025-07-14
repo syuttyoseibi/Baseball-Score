@@ -422,7 +422,9 @@ function editPlayer(team, playerId) {
     document.getElementById('editPlayerPosition').value = player.position || '';
     
     // モーダルを表示
-    document.getElementById('editPlayerModal').classList.add('visible');
+    const editPlayerModal = document.getElementById('editPlayerModal');
+    editPlayerModal.classList.add('visible');
+    console.log("editPlayerModal visibility: ", editPlayerModal.classList.contains('visible'));
 }
 
 function closeEditPlayerModal() {
@@ -436,6 +438,7 @@ function closeEditPlayerModal() {
 }
 
 function confirmEditPlayer() {
+    console.log("confirmEditPlayer called.");
     if (!currentEditPlayerData) return;
     
     const newName = document.getElementById('editPlayerName').value.trim();
@@ -483,6 +486,7 @@ function confirmEditPlayer() {
     
     showMessage('選手情報を更新しました', 'success'); // 成功メッセージはグローバルに表示
     saveGameData();
+    console.log("confirmEditPlayer finished, modal should be closed.");
 }
 
 function deletePlayer() {
@@ -1541,19 +1545,31 @@ function savePlayerToMaster(teamName, player) {
 }
 
 async function openPlayerMasterModal() {
+    console.log("openPlayerMasterModal called.");
     const team = document.getElementById('playerTeam').value;
     const teamName = team === 'home' ? gameData.homeTeamName : gameData.awayTeamName;
+    const playerMasterModal = document.getElementById('playerMasterModal');
+    const playerMasterModalErrorDisplay = document.getElementById('playerMasterModalErrorDisplay');
+
+    // 既存のメッセージをクリア
+    if (playerMasterModalErrorDisplay) {
+        playerMasterModalErrorDisplay.innerHTML = '';
+    }
     
     if (!db) {
-        showMessage('データベースが初期化されていません。しばらくお待ちください。', 'error', 'playerMasterModalErrorDisplay');
-        // DB初期化を待ってから再試行
+        showMessage('データベースが初期化されていません。しばらくお待ちください。', 'info', 'playerMasterModalErrorDisplay');
+        console.log("DB not initialized. Attempting to await initDB().");
         try {
             await initDB();
-            openPlayerMasterModal(); // 再帰呼び出し
+            console.log("DB initialized after await. Retrying openPlayerMasterModal.");
+            // DB初期化後、再度openPlayerMasterModalを呼び出す
+            // ただし、無限ループを防ぐため、再帰呼び出しは慎重に
+            // ここでは、DBが初期化されたらそのまま処理を続行する
         } catch (error) {
             showMessage('データベースの初期化に失敗しました。', 'error', 'playerMasterModalErrorDisplay');
+            console.error("Failed to initialize DB after retry: ", error);
+            return;
         }
-        return;
     }
 
     const transaction = db.transaction([playerStoreName], "readonly");
@@ -1562,9 +1578,10 @@ async function openPlayerMasterModal() {
     const request = index.getAll(teamName);
 
     request.onsuccess = function(event) {
+        console.log("IndexedDB request success.");
         const players = event.target.result;
         const listDiv = document.getElementById('playerMasterList');
-        listDiv.innerHTML = '';
+        listDiv.innerHTML = ''; // 既存のリストをクリア
 
         if (players.length === 0) {
             listDiv.innerHTML = '<p>このチームの登録選手はいません。</p>';
@@ -1579,10 +1596,16 @@ async function openPlayerMasterModal() {
             });
             showMessage('選手マスタから選手を選択してください。', 'success', 'playerMasterModalErrorDisplay');
         }
-        document.getElementById('playerMasterModal').classList.add('visible');
+        // モーダルを表示
+        // DOM更新を待つためにわずかな遅延を入れる
+        setTimeout(() => {
+            playerMasterModal.classList.add('visible');
+            console.log("playerMasterModal visibility: ", playerMasterModal.classList.contains('visible'));
+        }, 50);
     };
 
     request.onerror = function(event) {
+        console.error("IndexedDB request error: ", event.target.errorCode);
         showMessage('選手マスタの読み込みに失敗しました。', 'error', 'playerMasterModalErrorDisplay');
     };
 }

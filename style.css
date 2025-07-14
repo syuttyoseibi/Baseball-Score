@@ -687,3 +687,24 @@ button:active {
     color: #721c24;
     border: 1px solid #f5c6cb;
 }
+
+.player-master-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    text-align: left;
+    font-size: 1.1em;
+}
+
+.player-master-item:hover {
+    background-color: #f0f0f0;
+}
+
+.player-master-item:last-child {
+    border-bottom: none;
+}
+
+.message-container {
+    margin-top: 10px;
+    min-height: 20px; /* メッセージ表示領域を確保 */
+}
