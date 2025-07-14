@@ -328,13 +328,13 @@ button:active {
     width: 100%;
     height: 100%;
     background-color: rgba(0,0,0,0.5);
-    display: none; /* デフォルトで非表示 */
+    display: none !important; /* デフォルトで非表示 */
     justify-content: center;
     align-items: center;
 }
 
 .modal.visible {
-    display: flex; /* visibleクラスがある場合のみ表示 */
+    display: flex !important; /* visibleクラスがある場合のみ表示 */
 }
 
 .modal-content {
@@ -642,6 +642,12 @@ button:active {
 .player-card,
 .at-bat-record {
     animation: slideIn 0.3s ease-out;
+}
+
+.help-content {
+    max-height: 70vh; /* 画面の高さの70%を最大高さとする */
+    overflow-y: auto; /* 縦方向にスクロール可能にする */
+    padding-right: 10px; /* スクロールバーとの隙間 */
 }
 
 /* 成功・エラーメッセージ */

@@ -10,6 +10,7 @@
     <div class="container">
         <header>
             <h1>⚾ 少年野球スコア記録</h1>
+            <button onclick="openHelpModal()" class="help-button">使い方</button>
         </header>
 
         <!-- チーム設定 -->
@@ -374,6 +375,86 @@
             <div id="playerMasterList"></div>
             <div class="modal-buttons">
                 <button onclick="closePlayerMasterModal()">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 選手マスタ選択モーダル -->
+    <div id="playerMasterModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closePlayerMasterModal()">&times;</span>
+            <h3>選手マスタから追加</h3>
+            <div id="playerMasterList"></div>
+            <div class="modal-buttons">
+                <button onclick="closePlayerMasterModal()">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ヘルプモーダル -->
+    <div id="helpModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeHelpModal()">&times;</span>
+            <h3>⚾ 少年野球スコア記録 アプリの使い方</h3>
+            <div class="help-content">
+                <h4>1. チーム設定</h4>
+                <ul>
+                    <li>「先攻チーム」「後攻チーム」のチーム名を入力します。</li>
+                    <li>試合日、試合会場も入力できます。</li>
+                    <li>「試合状況」「試合結果」は、試合の進行に合わせて選択してください。</li>
+                    <li>「PDF形式ダウンロード」ボタンで、現在のスコアをPDFとして保存できます。</li>
+                    <li>「試合をリセット」ボタンで、現在の試合データをすべてクリアできます。</li>
+                </ul>
+
+                <h4>2. 選手登録</h4>
+                <ul>
+                    <li>「チーム」プルダウンで、選手を登録するチームを選択します。</li>
+                    <li>「選手名（ニックネーム）」「背番号」「守備位置」を入力し、「選手追加」ボタンで登録します。</li>
+                    <li>背番号や守備位置が重複している場合はエラーが表示されます。</li>
+                    <li>「選手マスタから追加」ボタンで、過去に登録した選手を簡単に呼び出せます。</li>
+                    <li>「後攻チームにサンプル選手を登録」「先攻チームにサンプル選手を登録」ボタンで、ダミー選手を登録できます。</li>
+                    <li>登録された選手は、選手カードとして表示されます。</li>
+                    <li>選手カードの「編集」ボタンで選手情報を修正できます。</li>
+                    <li>選手カードの「交代」ボタンで、選手交代を記録できます。</li>
+                </ul>
+
+                <h4>3. スコアボード</h4>
+                <ul>
+                    <li>イニングごとのスコアが表示されます。スコアのセルをクリックすると直接編集できます。</li>
+                    <li>「現在のイニング」と「表/裏」を選択して、現在のイニング状況を設定します。</li>
+                    <li>「ランナー状況」の各塁をクリックして、ランナーの有無を切り替えます。</li>
+                    <li>「アウトカウント」の「アウト+1」ボタンでアウトを増やし、「リセット」ボタンでアウトカウントを0に戻します。</li>
+                </ul>
+
+                <h4>4. 打席結果記録</h4>
+                <ul>
+                    <li>「打席チーム」「打者選択」で、打席に立つ選手を選択します。</li>
+                    <li>「打席結果」プルダウンで、打席の結果を選択します。（例: 単打、ホームラン、振り逃げなど）</li>
+                    <li>「得点数」で、この打席で入った得点を入力します。</li>
+                    <li>「打席結果記録」ボタンで、結果を記録します。</li>
+                </ul>
+
+                <h4>5. 選手別打撃成績</h4>
+                <ul>
+                    <li>登録された選手の打撃成績が自動で集計され、表示されます。</li>
+                </ul>
+
+                <h4>6. 打席記録履歴</h4>
+                <ul>
+                    <li>これまでの打席結果が新しい順に表示されます。</li>
+                    <li>各記録の「編集」ボタンで、打席結果や得点を修正できます。</li>
+                    <li>「履歴クリア」ボタンで、すべての打席記録を削除できます。</li>
+                </ul>
+
+                <h4>7. 選手交代履歴</h4>
+                <ul>
+                    <li>記録された選手交代の履歴が表示されます。</li>
+                </ul>
+
+                <p>ご不明な点がありましたら、各機能をお試しください。</p>
+            </div>
+            <div class="modal-buttons">
+                <button onclick="closeHelpModal()">閉じる</button>
             </div>
         </div>
     </div>

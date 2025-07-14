@@ -545,7 +545,7 @@ function updateSubstitutionHistory() {
         `;
     });
     historyHTML += '</div>';
-    historyDiv.innerHTML = historyHTML;
+    historyDiv.innerHTML = html;
 }
 
 // 打者選択更新
@@ -1760,4 +1760,12 @@ function resetGame() {
             showMessage('試合データをリセットしました', 'success');
         }
     }
+}
+
+function openHelpModal() {
+    document.getElementById('helpModal').classList.add('visible');
+}
+
+function closeHelpModal() {
+    document.getElementById('helpModal').classList.remove('visible');
 }
