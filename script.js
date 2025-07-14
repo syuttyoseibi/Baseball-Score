@@ -1591,20 +1591,27 @@ async function openPlayerMasterModal() {
             players.sort((a, b) => a.number - b.number).forEach(player => {
                 const playerDiv = document.createElement('div');
                 playerDiv.className = 'player-master-item';
-                playerDiv.innerHTML = `
-                    <span>${player.number} ${player.name}</span>
-                    <button class="edit-master-btn">編集</button>
-                `;
 
-                playerDiv.addEventListener('click', (e) => {
-                    if (e.target.tagName === 'BUTTON') {
-                        e.stopPropagation();
-                        openEditPlayerMasterModal(player);
-                    } else {
-                        addPlayerFromMaster(player);
-                    }
+                const infoSpan = document.createElement('span');
+                infoSpan.textContent = `${player.number} ${player.name}`;
+
+                const editButton = document.createElement('button');
+                editButton.className = 'edit-master-btn';
+                editButton.textContent = '編集';
+
+                // 選手名部分をクリックしたら追加
+                playerDiv.addEventListener('click', () => {
+                    addPlayerFromMaster(player);
                 });
 
+                // 編集ボタンをクリックしたら編集モーダルを開く
+                editButton.addEventListener('click', (e) => {
+                    e.stopPropagation(); // 親要素のクリックイベントを防ぐ
+                    openEditPlayerMasterModal(player);
+                });
+
+                playerDiv.appendChild(infoSpan);
+                playerDiv.appendChild(editButton);
                 listDiv.appendChild(playerDiv);
             });
             showMessage('選手マスタから選手を選択してください。', 'success', 'playerMasterModalErrorDisplay');
