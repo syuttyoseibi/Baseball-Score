@@ -56,6 +56,25 @@ section h2 {
     padding-bottom: 5px;
 }
 
+.section-toggle {
+    cursor: pointer;
+    position: relative;
+}
+
+.section-toggle::after {
+    content: '-';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.5em;
+    font-weight: bold;
+}
+
+.section-toggle.collapsed::after {
+    content: '+';
+}
+
 .form-group {
     margin-bottom: 15px;
 }

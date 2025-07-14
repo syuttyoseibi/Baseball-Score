@@ -110,6 +110,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // スコアボードの直接編集
         makeScoreEditable();
+
+        // 折りたたみ機能
+        document.querySelectorAll('.section-toggle').forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                const content = toggle.nextElementSibling;
+                toggle.classList.toggle('collapsed');
+                content.style.display = toggle.classList.contains('collapsed') ? 'none' : '';
+            });
+        });
     }
 
     // =====================================================================================
