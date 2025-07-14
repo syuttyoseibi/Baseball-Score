@@ -740,6 +740,167 @@ document.addEventListener('DOMContentLoaded', () => {
         const doc = new jsPDF('p', 'mm', 'a4');
         const content = document.createElement('div');
         content.style.cssText = `position: absolute; left: -9999px; top: 0; width: 800px; background: white; padding: 20px; font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', 'Meiryo', sans-serif; font-size: 12px; line-height: 1.5;`;
+
+        // PDF生成用のヘルパー関数
+        const getResultTextForPDF = () => {
+            const result = gameData.result;
+            if (!result) return '未確定';
+            if (result === 'home-win') return `${gameData.homeTeamName}勝利`;
+            if (result === 'away-win') return `${gameData.awayTeamName}勝利`;
+            return '引き分け';
+        };
+
+        const generateScoreRow = (team) => {
+            let html = '';
+            const scores = team === 'home' ? gameData.homeScore : gameData.awayScore;
+            let total = 0;
+            for (let i = 0; i < 7; i++) {
+                const score = scores[i] || 0;
+                total += score;
+                html += `<td style="border: 1px solid #333; padding: 8px; text-align: center;">${score}</td>`;
+            }
+            html += `<td style="border: 1px solid #333; padding: 8px; text-align: center; font-weight: bold; background: #e0e0e0;">${total}</td>`;
+            return html;
+        };
+
+        const generatePlayerStatsRows = () => {
+            let html = '';
+            const header = `
+                <tr style="background: #f0f0f0;">
+                    <th style="border: 1px solid #333; padding: 6px;">背番号</th>
+                    <th style="border: 1px solid #333; padding: 6px;">選手名</th>
+                    <th style="border: 1px solid #333; padding: 6px;">守備</th>
+                    <th style="border: 1px solid #333; padding: 6px;">打席</th>
+                    <th style="border: 1px solid #333; padding: 6px;">安打</th>
+                    <th style="border: 1px solid #333; padding: 6px;">打率</th>
+                    <th style="border: 1px solid #333; padding: 6px;">打点</th>
+                </tr>`;
+            const row = (player) => {
+                const stats = player.stats || { atBats: 0, hits: 0, rbis: 0 };
+                const average = stats.atBats > 0 ? (stats.hits / stats.atBats).toFixed(3) : '.000';
+                return `
+                    <tr>
+                        <td style="border: 1px solid #333; padding: 6px; text-align: center;">${player.number}</td>
+                        <td style="border: 1px solid #333; padding: 6px;">${player.name}</td>
+                        <td style="border: 1px solid #333; padding: 6px; text-align: center;">${getPositionFullName(player.position) || ''}</td>
+                        <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.atBats}</td>
+                        <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.hits}</td>
+                        <td style="border: 1px solid #333; padding: 6px; text-align: center;">${average}</td>
+                        <td style="border: 1px solid #333; padding: 6px; text-align: center;">${stats.rbis}</td>
+                    </tr>`;
+            };
+            html += `<h3 style="font-size: 16px; margin-top: 20px; margin-bottom: 10px;">${gameData.awayTeamName} 選手別打撃成績</h3>`;
+            html += `<table style="width: 100%; border-collapse: collapse; font-size: 10px;">${header}`;
+            awayPlayers.sort((a, b) => a.number - b.number).forEach(p => html += row(p));
+            html += '</table>';
+            html += `<h3 style="font-size: 16px; margin-top: 20px; margin-bottom: 10px;">${gameData.homeTeamName} 選手別打撃成績</h3>`;
+            html += `<table style="width: 100%; border-collapse: collapse; font-size: 10px;">${header}`;
+            homePlayers.sort((a, b) => a.number - b.number).forEach(p => html += row(p));
+            html += '</table>';
+            return html;
+        };
+
+        const generateAtBatHistoryRows = () => {
+            if (!gameData.atBatHistory || gameData.atBatHistory.length === 0) return '<p>打席記録はありません</p>';
+            let html = '<table style="width: 100%; border-collapse: collapse; font-size: 10px;">';
+            html += `
+                <tr style="background: #f0f0f0;">
+                    <th style="border: 1px solid #333; padding: 6px;">イニング</th>
+                    <th style="border: 1px solid #333; padding: 6px;">チーム</th>
+                    <th style="border: 1px solid #333; padding: 6px;">選手名</th>
+                    <th style="border: 1px solid #333; padding: 6px;">結果</th>
+                    <th style="border: 1px solid #333; padding: 6px;">得点</th>
+                </tr>`;
+            const allPlayers = [...homePlayers, ...awayPlayers];
+            gameData.atBatHistory.forEach(record => {
+                const player = allPlayers.find(p => p.id === record.playerId);
+                html += `
+                    <tr>
+                        <td style="border: 1px solid #333; padding: 6px; text-align: center;">${record.inning}回${record.isTop ? '表' : '裏'}</td>
+                        <td style="border: 1px solid #333; padding: 6px;">${player.team === 'home' ? gameData.homeTeamName : gameData.awayTeamName}</td>
+                        <td style="border: 1px solid #333; padding: 6px;">${player ? player.name : ''}</td>
+                        <td style="border: 1px solid #333; padding: 6px;">${getResultText(record.result)}</td>
+                        <td style="border: 1px solid #333; padding: 6px; text-align: center;">${record.runs}</td>
+                    </tr>`;
+            });
+            html += '</table>';
+            return html;
+        };
+
+        const generateSubstitutionHistoryRows = () => {
+            if (!gameData.substitutionHistory || gameData.substitutionHistory.length === 0) return '';
+            let html = `<div style="margin-bottom: 15px;"><h2 style="font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 5px;">選手交代履歴</h2>`;
+            gameData.substitutionHistory.forEach(record => {
+                html += `<div style="margin: 5px 0; padding: 5px; border-bottom: 1px solid #ddd; font-size: 10px;">
+                    <strong>${record.inning}回${record.half}</strong> - ${record.team}: ${record.outPlayer} → ${record.inPlayer} (${getPositionFullName(record.position)})
+                </div>`;
+            });
+            html += '</div>';
+            return html;
+        };
+
+        // PDFのメインコンテンツを生成
+        content.innerHTML = `
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h1 style="font-size: 20px; margin: 0;">⚾ 少年野球試合記録</h1>
+                <p style="font-size: 14px; margin: 5px 0;">試合日: ${gameData.date}</p>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <h2 style="font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 5px;">試合情報</h2>
+                <p><strong>会場:</strong> ${gameData.location || '未設定'}</p>
+                <p><strong>対戦:</strong> ${gameData.awayTeamName} vs ${gameData.homeTeamName}</p>
+                <p><strong>結果:</strong> ${getResultTextForPDF()}</p>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <h2 style="font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 5px;">スコア</h2>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr style="background: #f0f0f0;">
+                        <th style="border: 1px solid #333; padding: 8px;">チーム</th> ${[...Array(7).keys()].map(i => `<th style="border: 1px solid #333; padding: 8px;">${i+1}回</th>`).join('')} <th style="border: 1px solid #333; padding: 8px;">合計</th>
+                    </tr>
+                    <tr><td style="border: 1px solid #333; padding: 8px; font-weight: bold;">${gameData.awayTeamName}</td>${generateScoreRow('away')}</tr>
+                    <tr><td style="border: 1px solid #333; padding: 8px; font-weight: bold;">${gameData.homeTeamName}</td>${generateScoreRow('home')}</tr>
+                </table>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <h2 style="font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 5px;">選手別成績</h2>
+                ${generatePlayerStatsRows()}
+            </div>
+            <div style="margin-bottom: 15px;">
+                <h2 style="font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 5px;">打席記録履歴</h2>
+                ${generateAtBatHistoryRows()}
+            </div>
+            ${generateSubstitutionHistoryRows()}
+        `;
+
+        document.body.appendChild(content);
+        html2canvas(content, { scale: 2, useCORS: true }).then(canvas => {
+            const imgData = canvas.toDataURL('image/png');
+            const imgWidth = 210; // A4 width in mm
+            const pageHeight = 297; // A4 height in mm
+            const imgHeight = canvas.height * imgWidth / canvas.width;
+            let heightLeft = imgHeight;
+            let position = 0;
+            doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+            while (heightLeft >= 0) {
+                position = heightLeft - imgHeight;
+                doc.addPage();
+                doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+            }
+            doc.save(`score_${gameData.date}.pdf`);
+            document.body.removeChild(content);
+            showMessage('PDFをダウンロードしました', 'success');
+        }).catch(err => {
+            console.error("PDF generation error:", err);
+            showMessage('PDFの生成に失敗しました', 'error');
+            if(document.body.contains(content)) document.body.removeChild(content);
+        });
+    }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'a4');
+        const content = document.createElement('div');
+        content.style.cssText = `position: absolute; left: -9999px; top: 0; width: 800px; background: white; padding: 20px; font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', 'Meiryo', sans-serif; font-size: 12px; line-height: 1.5;`;
         
         const getResultTextForPDF = () => {
             const result = gameData.result;
