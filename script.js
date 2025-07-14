@@ -100,6 +100,8 @@ function setupEventListeners() {
         saveGameData();
     });
 
+    document.getElementById('openPlayerMasterModalBtn').addEventListener('click', openPlayerMasterModal);
+
     // ページ離脱時の警告
     window.addEventListener('beforeunload', function(e) {
         // 試合データが保存されている、または変更がある場合に警告を表示
@@ -1597,11 +1599,7 @@ async function openPlayerMasterModal() {
             showMessage('選手マスタから選手を選択してください。', 'success', 'playerMasterModalErrorDisplay');
         }
         // モーダルを表示
-        // DOM更新を待つためにわずかな遅延を入れる
-        setTimeout(() => {
-            playerMasterModal.classList.add('visible');
-            console.log("playerMasterModal visibility: ", playerMasterModal.classList.contains('visible'));
-        }, 50);
+        playerMasterModal.classList.add('visible');
     };
 
     request.onerror = function(event) {
