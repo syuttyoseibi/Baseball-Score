@@ -689,11 +689,31 @@ button:active {
 }
 
 .player-master-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     padding: 10px;
     border-bottom: 1px solid #eee;
     cursor: pointer;
-    text-align: left;
-    font-size: 1.1em;
+}
+
+.player-master-item span {
+    flex-grow: 1;
+}
+
+.player-master-item .edit-master-btn {
+    background: #ff9800;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+.player-master-item .edit-master-btn:hover {
+    background: #f57c00;
 }
 
 .player-master-item:hover {

@@ -384,6 +384,29 @@
         </div>
     </div>
 
+    <!-- 選手マスタ編集モーダル -->
+    <div id="editPlayerMasterModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEditPlayerMasterModal()">&times;</span>
+            <h3>選手マスタ編集</h3>
+            <div id="editPlayerMasterInfo"></div>
+            <div class="form-group">
+                <label for="editPlayerMasterName">選手名:</label>
+                <input type="text" id="editPlayerMasterName">
+            </div>
+            <div class="form-group">
+                <label for="editPlayerMasterNumber">背番号:</label>
+                <input type="number" id="editPlayerMasterNumber" min="0" max="99">
+            </div>
+            <div id="editPlayerMasterErrorDisplay" class="message-container"></div>
+            <div class="modal-buttons">
+                <button onclick="confirmEditPlayerMaster()">保存</button>
+                <button onclick="deletePlayerFromMaster()">削除</button>
+                <button onclick="closeEditPlayerMasterModal()">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ヘルプモーダル -->
     <div id="helpModal" class="modal">
         <div class="modal-content">

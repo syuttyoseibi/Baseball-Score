@@ -6,7 +6,7 @@ const gameDataStoreName = "gameData"; // 新しいストア名
 
 function initDB() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open(dbName, 3); // バージョンを3に上げる
+        const request = indexedDB.open(dbName, 2); // バージョンを2に上げる
 
         request.onerror = function(event) {
             console.error("Database error: " + event.target.errorCode);
@@ -20,26 +20,16 @@ function initDB() {
         };
 
         request.onupgradeneeded = function(event) {
-            console.log("Upgrading database...");
             let db = event.target.result;
-            const transaction = event.target.transaction;
-
-            // playerMasterストア
+            // 既存のplayerMasterストア
             if (!db.objectStoreNames.contains(playerStoreName)) {
-                const playerStore = db.createObjectStore(playerStoreName, { keyPath: ['teamName', 'number'] });
-                playerStore.createIndex('teamName', 'teamName');
-            } else {
-                const playerStore = transaction.objectStore(playerStoreName);
-                if (!playerStore.indexNames.contains('teamName')) {
-                    playerStore.createIndex('teamName', 'teamName');
-                }
+                db.createObjectStore(playerStoreName, { keyPath: ['teamName', 'number'] });
             }
-
-            // gameDataストア
+            // 新しいgameDataストア
             if (!db.objectStoreNames.contains(gameDataStoreName)) {
                 db.createObjectStore(gameDataStoreName, { keyPath: "id" });
             }
-            console.log("Object store created/updated for version 3");
+            console.log("Object store created/updated");
         };
     });
 }
@@ -67,34 +57,16 @@ let gameData = {
 
 // ページ読み込み時の初期化
 document.addEventListener('DOMContentLoaded', async function() {
-    try {
-        await initDB();
-        console.log("DB initialization complete.");
-
-        // 今日の日付を設定
-        const today = new Date().toISOString().split('T')[0];
-        document.getElementById('gameDate').value = today;
-
-        // イベントリスナー設定
-        setupEventListeners();
-        console.log("Event listeners set up.");
-
-        // UI更新
-        updateDisplay();
-        updateTeamNames();
-        makeScoreEditable();
-        updateBattingTeamSelect();
-        updateSubstitutionHistory();
-        updateGameResultOptions();
-
-        // ゲームデータロード
-        await loadGameData();
-        console.log("Game data loaded.");
-
-    } catch (error) {
-        console.error("Initialization failed: ", error);
-        showMessage('アプリケーションの初期化に失敗しました。', 'error');
-    }
+    await initDB(); // DBの初期化を待つ
+    // 今日の日付を設定
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('gameDate').value = today;
+    
+    // イベントリスナー設定
+    setupEventListeners();
+    updateDisplay();
+    await loadGameData(); // DB初期化後にゲームデータをロードし、完了を待つ
+    updateTeamNames(); // ロードされたデータに基づいてチーム名を更新
 });
 
 // イベントリスナー設定
@@ -1418,7 +1390,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     // イベントリスナー設定
     setupEventListeners();
     updateDisplay();
-    updateTeamNames();
+    await loadGameData(); // DB初期化後にゲームデータをロードし、完了を待つ
+    updateTeamNames(); // ロードされたデータに基づいてチーム名を更新
     setTimeout(makeScoreEditable, 100);
     setTimeout(updateBattingTeamSelect, 200);
     
@@ -1579,56 +1552,179 @@ async function openPlayerMasterModal() {
     const playerMasterModal = document.getElementById('playerMasterModal');
     const playerMasterModalErrorDisplay = document.getElementById('playerMasterModalErrorDisplay');
 
+    // 既存のメッセージをクリア
     if (playerMasterModalErrorDisplay) {
         playerMasterModalErrorDisplay.innerHTML = '';
     }
-
+    
     if (!db) {
-        showMessage('データベースが初期化されていません。', 'error', 'playerMasterModalErrorDisplay');
-        return;
+        showMessage('データベースが初期化されていません。しばらくお待ちください。', 'info', 'playerMasterModalErrorDisplay');
+        console.log("DB not initialized. Attempting to await initDB().");
+        try {
+            await initDB();
+            console.log("DB initialized after await. Retrying openPlayerMasterModal.");
+            // DB初期化後、再度openPlayerMasterModalを呼び出す
+            // ただし、無限ループを防ぐため、再帰呼び出しは慎重に
+            // ここでは、DBが初期化されたらそのまま処理を続行する
+        } catch (error) {
+            showMessage('データベースの初期化に失敗しました。', 'error', 'playerMasterModalErrorDisplay');
+            console.error("Failed to initialize DB after retry: ", error);
+            return;
+        }
     }
 
-    try {
-        const transaction = db.transaction([playerStoreName], "readonly");
-        const store = transaction.objectStore(playerStoreName);
-        const index = store.index("teamName");
-        const request = index.getAll(teamName);
+    const transaction = db.transaction([playerStoreName], "readonly");
+    const store = transaction.objectStore(playerStoreName);
+    const index = store.index("teamName");
+    const request = index.getAll(teamName);
 
-        request.onsuccess = function(event) {
-            const players = event.target.result;
-            const listDiv = document.getElementById('playerMasterList');
-            listDiv.innerHTML = '';
+    request.onsuccess = function(event) {
+        console.log("IndexedDB request success.");
+        const players = event.target.result;
+        const listDiv = document.getElementById('playerMasterList');
+        listDiv.innerHTML = ''; // 既存のリストをクリア
 
-            if (players.length === 0) {
-                listDiv.innerHTML = '<p>このチームの登録選手はいません。</p>';
-            } else {
-                players.sort((a, b) => a.number - b.number).forEach(player => {
-                    const playerDiv = document.createElement('div');
-                    playerDiv.className = 'player-master-item';
-                    playerDiv.innerHTML = `<span>${player.number} ${player.name}</span>`;
-                    playerDiv.onclick = () => addPlayerFromMaster(player);
-                    listDiv.appendChild(playerDiv);
-                });
-            }
+        if (players.length === 0) {
+            listDiv.innerHTML = '<p>このチームの登録選手はいません。</p>';
+            showMessage('選手マスタに選手がいません。選手を追加してください。', 'info', 'playerMasterModalErrorDisplay');
+        } else {
+            players.sort((a, b) => a.number - b.number).forEach(player => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'player-master-item';
+                
+                const playerNameSpan = document.createElement('span');
+                playerNameSpan.textContent = `${player.number} ${player.name}`;
+                playerNameSpan.onclick = () => addPlayerFromMaster(player);
+                
+                const editButton = document.createElement('button');
+                editButton.className = 'edit-master-btn';
+                editButton.textContent = '編集';
+                editButton.onclick = (e) => {
+                    e.stopPropagation(); // 親要素へのクリックイベント伝播を停止
+                    openEditPlayerMasterModal(player);
+                };
+                
+                playerDiv.appendChild(playerNameSpan);
+                playerDiv.appendChild(editButton);
+                listDiv.appendChild(playerDiv);
+            });
+            showMessage('選手マスタから選手を選択してください。', 'success', 'playerMasterModalErrorDisplay');
+        }
+        // モーダルを表示
+        // DOM更新を待つためにわずかな遅延を入れる
+        setTimeout(() => {
             playerMasterModal.classList.add('visible');
-        };
+            console.log("playerMasterModal visibility: ", playerMasterModal.classList.contains('visible'));
+        }, 50);
+    };
 
-        request.onerror = function(event) {
-            console.error("IndexedDB request error: ", event.target.errorCode);
-            showMessage('選手マスタの読み込みに失敗しました。', 'error', 'playerMasterModalErrorDisplay');
-        };
-    } catch (error) {
-        console.error("Error opening player master modal: ", error);
-        showMessage('選手マスタを開けませんでした。', 'error', 'playerMasterModalErrorDisplay');
-    }
+    request.onerror = function(event) {
+        console.error("IndexedDB request error: ", event.target.errorCode);
+        showMessage('選手マスタの読み込みに失敗しました。', 'error', 'playerMasterModalErrorDisplay');
+    };
 }
 
 function closePlayerMasterModal() {
     document.getElementById('playerMasterModal').classList.remove('visible');
-    // エラーメッセージをクリア
     const errorDisplay = document.getElementById('playerMasterModalErrorDisplay');
     if (errorDisplay) {
         errorDisplay.innerHTML = '';
+    }
+}
+
+// 選手マスタ編集モーダル
+let currentEditingMasterPlayer = null;
+
+function openEditPlayerMasterModal(player) {
+    currentEditingMasterPlayer = player;
+    document.getElementById('editPlayerMasterName').value = player.name;
+    document.getElementById('editPlayerMasterNumber').value = player.number;
+    document.getElementById('editPlayerMasterModal').classList.add('visible');
+}
+
+function closeEditPlayerMasterModal() {
+    document.getElementById('editPlayerMasterModal').classList.remove('visible');
+    currentEditingMasterPlayer = null;
+    const errorDisplay = document.getElementById('editPlayerMasterErrorDisplay');
+    if (errorDisplay) {
+        errorDisplay.innerHTML = '';
+    }
+}
+
+async function confirmEditPlayerMaster() {
+    if (!currentEditingMasterPlayer) return;
+
+    const newName = document.getElementById('editPlayerMasterName').value.trim();
+    const newNumber = parseInt(document.getElementById('editPlayerMasterNumber').value);
+
+    if (!newName || newNumber === null || newNumber < 0 || newNumber > 99) {
+        showMessage('有効な選手名と背番号を入力してください。', 'error', 'editPlayerMasterErrorDisplay');
+        return;
+    }
+
+    const originalPlayer = currentEditingMasterPlayer;
+    const updatedPlayer = { ...originalPlayer, name: newName, number: newNumber };
+
+    try {
+        const transaction = db.transaction([playerStoreName], "readwrite");
+        const store = transaction.objectStore(playerStoreName);
+
+        // 新しい背番号が既に存在するかチェック (元の選手以外)
+        const request = store.get([originalPlayer.teamName, newNumber]);
+        request.onsuccess = () => {
+            if (request.result && (request.result.name !== originalPlayer.name)) {
+                showMessage(`背番号 ${newNumber} は既に使用されています。`, 'error', 'editPlayerMasterErrorDisplay');
+                return;
+            }
+
+            // 元の選手を削除
+            store.delete([originalPlayer.teamName, originalPlayer.number]).onsuccess = () => {
+                // 新しい情報で選手を追加
+                store.put(updatedPlayer).onsuccess = () => {
+                    showMessage('選手情報を更新しました。', 'success');
+                    closeEditPlayerMasterModal();
+                    openPlayerMasterModal(); // マスタを再表示
+                };
+            };
+        };
+        request.onerror = (e) => {
+            showMessage('更新処理中にエラーが発生しました。', 'error', 'editPlayerMasterErrorDisplay');
+            console.error(e);
+        }
+
+    } catch (error) {
+        showMessage('データベース処理中にエラーが発生しました。', 'error', 'editPlayerMasterErrorDisplay');
+        console.error(error);
+    }
+}
+
+function deletePlayerFromMaster() {
+    if (!currentEditingMasterPlayer) return;
+
+    if (!confirm(`${currentEditingMasterPlayer.name}選手をマスタから完全に削除しますか？この操作は元に戻せません。`)) {
+        return;
+    }
+
+    const playerToDelete = currentEditingMasterPlayer;
+
+    try {
+        const transaction = db.transaction([playerStoreName], "readwrite");
+        const store = transaction.objectStore(playerStoreName);
+        const request = store.delete([playerToDelete.teamName, playerToDelete.number]);
+
+        request.onsuccess = () => {
+            showMessage('選手をマスタから削除しました。', 'success');
+            closeEditPlayerMasterModal();
+            openPlayerMasterModal(); // マスタを再表示
+        };
+
+        request.onerror = (e) => {
+            showMessage('削除処理中にエラーが発生しました。', 'error', 'editPlayerMasterErrorDisplay');
+            console.error(e);
+        };
+    } catch (error) {
+        showMessage('データベース処理中にエラーが発生しました。', 'error', 'editPlayerMasterErrorDisplay');
+        console.error(error);
     }
 }
 
@@ -1727,8 +1823,9 @@ function saveGameData() {
 function loadGameData() {
     return new Promise((resolve, reject) => {
         if (!db) {
-            console.log("DB not ready for loading data.");
-            return resolve(); // DBがなければ何もしない
+            console.error("DB not initialized when trying to load game data.");
+            reject("DB not initialized");
+            return;
         }
         const transaction = db.transaction([gameDataStoreName], "readonly");
         const store = transaction.objectStore(gameDataStoreName);
@@ -1737,29 +1834,30 @@ function loadGameData() {
         request.onsuccess = function(event) {
             const loadedData = event.target.result;
             if (loadedData) {
+                // ロードしたデータをgameDataにマージ
                 Object.assign(gameData, loadedData);
+                // 選手データも復元
                 homePlayers = loadedData.homePlayers || [];
                 awayPlayers = loadedData.awayPlayers || [];
 
                 // UIを更新
                 updateDisplay();
-                updateTeamNames();
+                updateTeamNames(); // チーム名表示も更新
                 updatePlayersDisplay();
                 updateBatterSelect();
                 updateAtBatHistory();
                 updatePlayerStatsDisplay();
                 updateSubstitutionHistory();
                 showMessage('前回の試合データをロードしました', 'success');
-                console.log("Game data successfully loaded and UI updated.");
+                resolve();
             } else {
                 console.log("No saved game data found.");
+                resolve();
             }
-            resolve();
         };
 
         request.onerror = function(event) {
             console.error("Error loading game data: " + event.target.errorCode);
-            showMessage('試合データの読み込みに失敗しました。', 'error');
             reject(event.target.errorCode);
         };
     });
