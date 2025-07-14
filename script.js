@@ -1,5 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // グローバル変数
+    // =====================================================================================
+    // グローバル変数 & 定数
+    // =====================================================================================
     let db;
     const dbName = "BaseballScoreDB";
     const playerStoreName = "playerMaster";
@@ -14,63 +16,29 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentEditingAtBatId = null;
     let currentEditingMasterPlayer = null;
 
-    // DOM要素
-    const elements = {
-        // Buttons
-        helpButton: document.getElementById('helpButton'),
-        downloadPdfButton: document.getElementById('downloadPdfButton'),
-        resetGameButton: document.getElementById('resetGameButton'),
-        addPlayerButton: document.getElementById('addPlayerButton'),
-        openPlayerMasterModalButton: document.getElementById('openPlayerMasterModalButton'),
-        addSampleHomePlayersButton: document.getElementById('addSampleHomePlayersButton'),
-        addSampleAwayPlayersButton: document.getElementById('addSampleAwayPlayersButton'),
-        addOutButton: document.getElementById('addOutButton'),
-        resetOutsButton: document.getElementById('resetOutsButton'),
-        recordAtBatButton: document.getElementById('recordAtBatButton'),
-        clearHistoryButton: document.getElementById('clearHistoryButton'),
-        // Modals
-        helpModal: document.getElementById('helpModal'),
-        substitutionModal: document.getElementById('substitutionModal'),
-        editPlayerModal: document.getElementById('editPlayerModal'),
-        editAtBatModal: document.getElementById('editAtBatModal'),
-        playerMasterModal: document.getElementById('playerMasterModal'),
-        editPlayerMasterModal: document.getElementById('editPlayerMasterModal'),
-        // Modal Close Buttons
-        closeHelpModalButton: document.getElementById('closeHelpModalButton'),
-        cancelHelpModalButton: document.getElementById('cancelHelpModalButton'),
-        closeSubstitutionModalButton: document.getElementById('closeSubstitutionModalButton'),
-        cancelSubstitutionButton: document.getElementById('cancelSubstitutionButton'),
-        closeEditPlayerModalButton: document.getElementById('closeEditPlayerModalButton'),
-        cancelEditPlayerButton: document.getElementById('cancelEditPlayerButton'),
-        closeEditAtBatModalButton: document.getElementById('closeEditAtBatModalButton'),
-        cancelEditAtBatButton: document.getElementById('cancelEditAtBatButton'),
-        closePlayerMasterModalButton: document.getElementById('closePlayerMasterModalButton'),
-        cancelPlayerMasterModalButton: document.getElementById('cancelPlayerMasterModalButton'),
-        closeEditPlayerMasterModalButton: document.getElementById('closeEditPlayerMasterModalButton'),
-        cancelEditPlayerMasterButton: document.getElementById('cancelEditPlayerMasterButton'),
-        // Modal Confirm Buttons
-        confirmSubstitutionButton: document.getElementById('confirmSubstitutionButton'),
-        confirmEditPlayerButton: document.getElementById('confirmEditPlayerButton'),
-        deletePlayerButton: document.getElementById('deletePlayerButton'),
-        confirmEditAtBatButton: document.getElementById('confirmEditAtBatButton'),
-        confirmEditPlayerMasterButton: document.getElementById('confirmEditPlayerMasterButton'),
-        deletePlayerFromMasterButton: document.getElementById('deletePlayerFromMasterButton'),
-    };
-
+    // =====================================================================================
     // 初期化
+    // =====================================================================================
+    initializeApp();
+
     async function initializeApp() {
-        await initDB();
-        resetGameData();
-        await loadGameData();
-        setupEventListeners();
-        updateAllDisplays();
-        console.log("App initialized");
+        try {
+            await initDB();
+            resetGameData(); // まずデフォルト値を設定
+            await loadGameData(); // DBから保存データを読み込んで上書き
+            setupEventListeners();
+            updateAllDisplays();
+            console.log("Baseball Score App Initialized Successfully");
+        } catch (error) {
+            console.error("Initialization failed:", error);
+            showMessage('アプリケーションの初期化に失敗しました。', 'error');
+        }
     }
 
     function initDB() {
         return new Promise((resolve, reject) => {
-            const request = indexedDB.open(dbName, 4); // Increment version for schema changes
-            request.onerror = (event) => reject("Database error: " + event.target.errorCode);
+            const request = indexedDB.open(dbName, 4);
+            request.onerror = (event) => reject(`Database error: ${event.target.errorCode}`);
             request.onsuccess = (event) => {
                 db = event.target.result;
                 resolve();
@@ -89,31 +57,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupEventListeners() {
-        // General UI
-        elements.helpButton.addEventListener('click', () => openModal('helpModal'));
-        elements.downloadPdfButton.addEventListener('click', downloadGamePDF);
-        elements.resetGameButton.addEventListener('click', resetGame);
+        // ボタン
+        document.getElementById('helpButton').addEventListener('click', () => openModal('helpModal'));
+        document.getElementById('downloadPdfButton').addEventListener('click', downloadGamePDF);
+        document.getElementById('resetGameButton').addEventListener('click', resetGame);
+        document.getElementById('addPlayerButton').addEventListener('click', addPlayer);
+        document.getElementById('openPlayerMasterModalButton').addEventListener('click', openPlayerMasterModal);
+        document.getElementById('addSampleHomePlayersButton').addEventListener('click', () => addSamplePlayers('home'));
+        document.getElementById('addSampleAwayPlayersButton').addEventListener('click', () => addSamplePlayers('away'));
+        document.getElementById('addOutButton').addEventListener('click', addOut);
+        document.getElementById('resetOutsButton').addEventListener('click', resetOuts);
+        document.getElementById('recordAtBatButton').addEventListener('click', recordAtBat);
+        document.getElementById('clearHistoryButton').addEventListener('click', clearHistory);
 
-        // Player Registration
-        elements.addPlayerButton.addEventListener('click', addPlayer);
-        elements.openPlayerMasterModalButton.addEventListener('click', openPlayerMasterModal);
-        elements.addSampleHomePlayersButton.addEventListener('click', () => addSamplePlayers('home'));
-        elements.addSampleAwayPlayersButton.addEventListener('click', () => addSamplePlayers('away'));
-
-        // Scoreboard
-        elements.addOutButton.addEventListener('click', addOut);
-        elements.resetOutsButton.addEventListener('click', resetOuts);
+        // ベース
         document.getElementById('base1').addEventListener('click', () => toggleBase(0));
         document.getElementById('base2').addEventListener('click', () => toggleBase(1));
         document.getElementById('base3').addEventListener('click', () => toggleBase(2));
 
-        // At-Bat
-        elements.recordAtBatButton.addEventListener('click', recordAtBat);
-        elements.clearHistoryButton.addEventListener('click', clearHistory);
-
-        // Team & Game Info
-        document.getElementById('homeTeamName').addEventListener('input', updateTeamNames);
-        document.getElementById('awayTeamName').addEventListener('input', updateTeamNames);
+        // 入力・選択
+        document.getElementById('homeTeamName').addEventListener('input', () => { gameData.homeTeamName = document.getElementById('homeTeamName').value; saveAndRefresh(); });
+        document.getElementById('awayTeamName').addEventListener('input', () => { gameData.awayTeamName = document.getElementById('awayTeamName').value; saveAndRefresh(); });
         document.getElementById('gameDate').addEventListener('change', saveGameInfo);
         document.getElementById('gameLocation').addEventListener('change', saveGameInfo);
         document.getElementById('gameStatus').addEventListener('change', saveGameInfo);
@@ -122,30 +86,35 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('topBottom').addEventListener('change', () => { gameData.isTop = document.getElementById('topBottom').value === 'top'; saveAndRefresh(); });
         document.getElementById('battingTeam').addEventListener('change', updateBatterSelect);
 
-        // Modal Close Buttons
-        elements.closeHelpModalButton.addEventListener('click', () => closeModal('helpModal'));
-        elements.cancelHelpModalButton.addEventListener('click', () => closeModal('helpModal'));
-        elements.closeSubstitutionModalButton.addEventListener('click', () => closeModal('substitutionModal'));
-        elements.cancelSubstitutionButton.addEventListener('click', () => closeModal('substitutionModal'));
-        elements.closeEditPlayerModalButton.addEventListener('click', () => closeModal('editPlayerModal'));
-        elements.cancelEditPlayerButton.addEventListener('click', () => closeModal('editPlayerModal'));
-        elements.closeEditAtBatModalButton.addEventListener('click', () => closeModal('editAtBatModal'));
-        elements.cancelEditAtBatButton.addEventListener('click', () => closeModal('editAtBatModal'));
-        elements.closePlayerMasterModalButton.addEventListener('click', () => closeModal('playerMasterModal'));
-        elements.cancelPlayerMasterModalButton.addEventListener('click', () => closeModal('playerMasterModal'));
-        elements.closeEditPlayerMasterModalButton.addEventListener('click', () => closeModal('editPlayerMasterModal'));
-        elements.cancelEditPlayerMasterButton.addEventListener('click', () => closeModal('editPlayerMasterModal'));
+        // モーダル閉じるボタン
+        document.querySelectorAll('.modal .close, .modal .cancel-button').forEach(el => {
+            const modal = el.closest('.modal');
+            if (modal) {
+                el.addEventListener('click', () => closeModal(modal.id));
+            }
+        });
+        document.getElementById('cancelHelpModalButton').addEventListener('click', () => closeModal('helpModal'));
+        document.getElementById('cancelSubstitutionButton').addEventListener('click', () => closeModal('substitutionModal'));
+        document.getElementById('cancelEditPlayerButton').addEventListener('click', () => closeModal('editPlayerModal'));
+        document.getElementById('cancelEditAtBatButton').addEventListener('click', () => closeModal('editAtBatModal'));
+        document.getElementById('cancelPlayerMasterModalButton').addEventListener('click', () => closeModal('playerMasterModal'));
+        document.getElementById('cancelEditPlayerMasterButton').addEventListener('click', () => closeModal('editPlayerMasterModal'));
 
-        // Modal Action Buttons
-        elements.confirmSubstitutionButton.addEventListener('click', confirmSubstitution);
-        elements.confirmEditPlayerButton.addEventListener('click', confirmEditPlayer);
-        elements.deletePlayerButton.addEventListener('click', deletePlayer);
-        elements.confirmEditAtBatButton.addEventListener('click', confirmEditAtBat);
-        elements.confirmEditPlayerMasterButton.addEventListener('click', confirmEditPlayerMaster);
-        elements.deletePlayerFromMasterButton.addEventListener('click', deletePlayerFromMaster);
+        // モーダルアクションボタン
+        document.getElementById('confirmSubstitutionButton').addEventListener('click', confirmSubstitution);
+        document.getElementById('confirmEditPlayerButton').addEventListener('click', confirmEditPlayer);
+        document.getElementById('deletePlayerButton').addEventListener('click', deletePlayer);
+        document.getElementById('confirmEditAtBatButton').addEventListener('click', confirmEditAtBat);
+        document.getElementById('confirmEditPlayerMasterButton').addEventListener('click', confirmEditPlayerMaster);
+        document.getElementById('deletePlayerFromMasterButton').addEventListener('click', deletePlayerFromMaster);
+        
+        // スコアボードの直接編集
+        makeScoreEditable();
     }
 
-    // ===== データ管理 =====
+    // =====================================================================================
+    // データ管理
+    // =====================================================================================
     function resetGameData() {
         homePlayers = [];
         awayPlayers = [];
@@ -171,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveGameData() {
         if (!db) return;
         const transaction = db.transaction([gameDataStoreName], "readwrite");
-        const store = transaction.objectStore(gameDataStoreName);
+        store = transaction.objectStore(gameDataStoreName);
         store.put({ ...gameData, homePlayers, awayPlayers });
     }
 
@@ -182,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
             request.onsuccess = (event) => {
                 if (event.target.result) {
                     const loaded = event.target.result;
+                    // 読み込んだデータで上書き。ただし、undefinedの場合はデフォルト値を維持
                     gameData = { ...gameData, ...loaded };
                     homePlayers = loaded.homePlayers || [];
                     awayPlayers = loaded.awayPlayers || [];
@@ -189,21 +159,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 resolve();
             };
-            request.onerror = () => resolve(); // Continue even if load fails
+            request.onerror = () => resolve(); // ロード失敗時もアプリは継続
         });
     }
 
     function resetGame() {
-        if (confirm('現在の試合データをすべてリセットしますか？')) {
+        if (confirm('現在の試合データをすべてリセットしますか？この操作は元に戻せません。')) {
             resetGameData();
             if (db) {
-                db.transaction([gameDataStoreName], "readwrite").objectStore(gameDataStoreName).delete("current_game");
+                const transaction = db.transaction([gameDataStoreName], "readwrite");
+                transaction.objectStore(gameDataStoreName).delete("current_game");
             }
             saveAndRefresh();
             showMessage('試合データをリセットしました', 'success');
         }
     }
-    
+
     function saveGameInfo() {
         gameData.date = document.getElementById('gameDate').value;
         gameData.location = document.getElementById('gameLocation').value;
@@ -212,7 +183,9 @@ document.addEventListener('DOMContentLoaded', () => {
         saveGameData();
     }
 
-    // ===== UI更新 =====
+    // =====================================================================================
+    // UI更新
+    // =====================================================================================
     function updateAllDisplays() {
         updateTeamNames();
         updatePlayersDisplay();
@@ -223,7 +196,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updatePlayerStatsDisplay();
         updateSubstitutionHistory();
         updateGameResultOptions();
-        // Set initial values from gameData
         document.getElementById('gameDate').value = gameData.date;
         document.getElementById('gameLocation').value = gameData.location;
         document.getElementById('gameStatus').value = gameData.status;
@@ -236,22 +208,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateTeamNames() {
-        const homeName = document.getElementById('homeTeamName').value || '後攻チーム';
-        const awayName = document.getElementById('awayTeamName').value || '先攻チーム';
-        gameData.homeTeamName = homeName;
-        gameData.awayTeamName = awayName;
-
-        document.getElementById('homeTeamNameDisplay').textContent = homeName;
-        document.getElementById('awayTeamNameDisplay').textContent = awayName;
-        document.getElementById('homeTeamPlayersTitle').textContent = `${homeName} 選手`;
-        document.getElementById('awayTeamPlayersTitle').textContent = `${awayName} 選手`;
-        document.getElementById('playerTeam').options[0].textContent = awayName;
-        document.getElementById('playerTeam').options[1].textContent = homeName;
-        document.getElementById('battingTeam').options[0].textContent = awayName;
-        document.getElementById('battingTeam').options[1].textContent = homeName;
-        updateGameResultOptions();
+        document.getElementById('homeTeamName').value = gameData.homeTeamName;
+        document.getElementById('awayTeamName').value = gameData.awayTeamName;
+        document.getElementById('homeTeamNameDisplay').textContent = gameData.homeTeamName;
+        document.getElementById('awayTeamNameDisplay').textContent = gameData.awayTeamName;
+        document.getElementById('homeTeamPlayersTitle').textContent = `${gameData.homeTeamName} 選手`;
+        document.getElementById('awayTeamPlayersTitle').textContent = `${gameData.awayTeamName} 選手`;
+        document.getElementById('playerTeam').options[0].textContent = gameData.awayTeamName;
+        document.getElementById('playerTeam').options[1].textContent = gameData.homeTeamName;
+        document.getElementById('battingTeam').options[0].textContent = gameData.awayTeamName;
+        document.getElementById('battingTeam').options[1].textContent = gameData.homeTeamName;
     }
-    
+
     function updateGameResultOptions() {
         const select = document.getElementById('gameResult');
         select.options[1].textContent = `${gameData.homeTeamName}勝利`;
@@ -306,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         updateBattingTeamSelect();
     }
-    
+
     function updateBattingTeamSelect() {
         document.getElementById('battingTeam').value = gameData.isTop ? 'away' : 'home';
         updateBatterSelect();
@@ -325,7 +293,93 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ===== アクション関数 =====
+    function updateAtBatHistory() {
+        const historyDiv = document.getElementById('atBatHistory');
+        historyDiv.innerHTML = '';
+        gameData.atBatHistory.slice().reverse().forEach(record => {
+            const player = [...homePlayers, ...awayPlayers].find(p => p.id === record.playerId);
+            if (!player) return;
+
+            const recordDiv = document.createElement('div');
+            recordDiv.className = 'at-bat-record';
+            recordDiv.innerHTML = `
+                <div class="details">
+                    ${record.inning}回${record.isTop ? '表' : '裏'} - ${player.number} ${player.name}: ${getResultText(record.result)}
+                    ${record.runs > 0 ? ` (${record.runs}得点)` : ''}
+                </div>
+                <button class="edit-btn">編集</button>
+            `;
+            recordDiv.querySelector('.edit-btn').addEventListener('click', () => editAtBat(record.id));
+            historyDiv.appendChild(recordDiv);
+        });
+    }
+
+    function updatePlayerStatsDisplay() {
+        const statsDiv = document.getElementById('statsTable');
+        const allPlayers = [...homePlayers, ...awayPlayers];
+        if (allPlayers.length === 0) {
+            statsDiv.innerHTML = '<p>登録された選手がいません</p>';
+            return;
+        }
+
+        let tableHTML = `
+            <table class="stats-table">
+                <thead>
+                    <tr>
+                        <th>チーム</th><th>背番号</th><th>選手名</th><th>守備</th><th>打席</th><th>安打</th><th>打率</th><th>二塁打</th><th>三塁打</th><th>本塁打</th><th>打点</th><th>四球</th><th>三振</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        const generateRow = (player) => {
+            const stats = player.stats;
+            const avg = stats.atBats > 0 ? (stats.hits / stats.atBats).toFixed(3) : '.000';
+            return `
+                <tr>
+                    <td>${player.team === 'home' ? gameData.homeTeamName : gameData.awayTeamName}</td>
+                    <td>${player.number}</td>
+                    <td>${player.name}</td>
+                    <td>${getPositionFullName(player.position) || '-'}</td>
+                    <td>${stats.atBats}</td>
+                    <td>${stats.hits}</td>
+                    <td>${avg}</td>
+                    <td>${stats.doubles}</td>
+                    <td>${stats.triples}</td>
+                    <td>${stats.homeRuns}</td>
+                    <td>${stats.rbis}</td>
+                    <td>${stats.walks}</td>
+                    <td>${stats.strikeouts}</td>
+                </tr>
+            `;
+        };
+        homePlayers.sort((a, b) => a.number - b.number).forEach(p => tableHTML += generateRow(p));
+        awayPlayers.sort((a, b) => a.number - b.number).forEach(p => tableHTML += generateRow(p));
+        tableHTML += '</tbody></table>';
+        statsDiv.innerHTML = tableHTML;
+    }
+
+    function updateSubstitutionHistory() {
+        const historyDiv = document.getElementById('substitutionHistory');
+        if (!gameData.substitutionHistory || gameData.substitutionHistory.length === 0) {
+            historyDiv.innerHTML = '<p>交代記録はありません</p>';
+            return;
+        }
+        let html = '<div class="substitution-records">';
+        gameData.substitutionHistory.forEach(r => {
+            html += `
+                <div class="substitution-record">
+                    <div class="substitution-info"><strong>${r.inning}回${r.half}</strong> - ${r.team}</div>
+                    <div class="substitution-details">${r.outPlayer} → ${r.inPlayer} (${getPositionFullName(r.position)})</div>
+                    <div class="substitution-time">${r.timestamp}</div>
+                </div>
+            `;
+        });
+        historyDiv.innerHTML = html + '</div>';
+    }
+
+    // =====================================================================================
+    // アクション関数
+    // =====================================================================================
     function addPlayer() {
         const team = document.getElementById('playerTeam').value;
         const name = document.getElementById('playerName').value.trim();
@@ -336,24 +390,18 @@ document.addEventListener('DOMContentLoaded', () => {
             showMessage('選手名と背番号を入力してください', 'error', 'addPlayerErrorDisplay');
             return;
         }
-
         const players = team === 'home' ? homePlayers : awayPlayers;
         if (players.some(p => p.number === number && p.isActive)) {
             showMessage('その背番号は既に使用されています', 'error', 'addPlayerErrorDisplay');
             return;
         }
 
-        const newPlayer = {
-            id: Date.now(), name, number, position, team, isActive: true,
-            stats: { atBats: 0, hits: 0, doubles: 0, triples: 0, homeRuns: 0, walks: 0, strikeouts: 0, rbis: 0 }
-        };
+        const newPlayer = { id: Date.now(), name, number, position, team, isActive: true, stats: { atBats: 0, hits: 0, doubles: 0, triples: 0, homeRuns: 0, walks: 0, strikeouts: 0, rbis: 0 } };
         players.push(newPlayer);
         savePlayerToMaster(team === 'home' ? gameData.homeTeamName : gameData.awayTeamName, { name, number });
-        
         document.getElementById('playerName').value = '';
         document.getElementById('playerNumber').value = '';
         document.getElementById('playerPosition').value = '';
-        
         saveAndRefresh();
         showMessage('選手を追加しました', 'success');
     }
@@ -361,12 +409,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function addSamplePlayers(team) {
         const players = team === 'home' ? homePlayers : awayPlayers;
         const teamName = team === 'home' ? gameData.homeTeamName : gameData.awayTeamName;
-        players.length = 0; // Clear existing players
+        players.length = 0; // 既存選手をクリア
         for (let i = 1; i <= 9; i++) {
-            players.push({
-                id: Date.now() + i, name: `選手${i}`, number: i, position: '', team, isActive: true,
-                stats: { atBats: 0, hits: 0, doubles: 0, triples: 0, homeRuns: 0, walks: 0, strikeouts: 0, rbis: 0 }
-            });
+            players.push({ id: Date.now() + i, name: `選手${i}`, number: i, position: '', team, isActive: true, stats: { atBats: 0, hits: 0, doubles: 0, triples: 0, homeRuns: 0, walks: 0, strikeouts: 0, rbis: 0 } });
         }
         saveAndRefresh();
         showMessage(`${teamName}にサンプル選手を追加しました`, 'success');
@@ -393,7 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function changeInning() {
         if (!gameData.isTop) {
-            gameData.currentInning++;
+            if (gameData.currentInning < 7) gameData.currentInning++;
         }
         gameData.isTop = !gameData.isTop;
         gameData.outs = 0;
@@ -410,11 +455,9 @@ document.addEventListener('DOMContentLoaded', () => {
             showMessage('打者と結果を選択してください', 'error');
             return;
         }
-
         const player = [...homePlayers, ...awayPlayers].find(p => p.id == batterId);
         if (!player) return;
 
-        // Update stats, score, history
         updatePlayerStats(player, result, runs, false);
         if (runs > 0) {
             const scoreTeam = player.team === 'home' ? 'homeScore' : 'awayScore';
@@ -427,16 +470,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             saveAndRefresh();
         }
-        
         document.getElementById('atBatResult').value = '';
         document.getElementById('runsScored').value = '0';
         showMessage('打席結果を記録しました', 'success');
     }
 
     function clearHistory() {
-        if (confirm('打席記録履歴をクリアしますか？')) {
+        if (confirm('打席記録履歴をクリアしますか？選手の打撃成績もリセットされます。')) {
             gameData.atBatHistory = [];
-            // Optionally reset stats
             [...homePlayers, ...awayPlayers].forEach(p => {
                 p.stats = { atBats: 0, hits: 0, doubles: 0, triples: 0, homeRuns: 0, walks: 0, strikeouts: 0, rbis: 0 };
             });
@@ -445,7 +486,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ===== モーダル関連 =====
+    function updatePlayerStats(player, result, runs, isReverting = false) {
+        const stats = player.stats;
+        const multiplier = isReverting ? -1 : 1;
+        if (!['walk', 'hbp'].includes(result)) {
+            stats.atBats += multiplier;
+        }
+        if (['single', 'double', 'triple', 'homerun', 'runningHomerun'].includes(result)) {
+            stats.hits += multiplier;
+        }
+        if (result === 'double') stats.doubles += multiplier;
+        if (result === 'triple') stats.triples += multiplier;
+        if (['homerun', 'runningHomerun'].includes(result)) stats.homeRuns += multiplier;
+        if (['walk', 'hbp'].includes(result)) stats.walks += multiplier;
+        if (result === 'strikeout') stats.strikeouts += multiplier;
+        stats.rbis += (runs * multiplier);
+    }
+
+    // =====================================================================================
+    // モーダル
+    // =====================================================================================
     function openModal(modalId) { document.getElementById(modalId).classList.add('visible'); }
     function closeModal(modalId) { document.getElementById(modalId).classList.remove('visible'); }
 
@@ -458,18 +518,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('editPlayerPosition').value = player.position;
         openModal('editPlayerModal');
     }
-    
+
     function confirmEditPlayer() {
         if (!currentEditPlayerData) return;
-        const { team, player } = currentEditPlayerData;
-        const newName = document.getElementById('editPlayerName').value.trim();
-        const newNumber = parseInt(document.getElementById('editPlayerNumber').value);
-        const newPosition = document.getElementById('editPlayerPosition').value;
-
-        player.name = newName;
-        player.number = newNumber;
-        player.position = newPosition;
-
+        const { player } = currentEditPlayerData;
+        player.name = document.getElementById('editPlayerName').value.trim();
+        player.number = parseInt(document.getElementById('editPlayerNumber').value);
+        player.position = document.getElementById('editPlayerPosition').value;
         closeModal('editPlayerModal');
         saveAndRefresh();
     }
@@ -485,7 +540,7 @@ document.addEventListener('DOMContentLoaded', () => {
             saveAndRefresh();
         }
     }
-    
+
     function substitutePlayer(team, playerId) {
         const player = (team === 'home' ? homePlayers : awayPlayers).find(p => p.id === playerId);
         if (!player) return;
@@ -500,16 +555,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const newName = document.getElementById('newPlayerName').value.trim();
         const newNumber = parseInt(document.getElementById('newPlayerNumber').value);
         const newPosition = document.getElementById('newPlayerPosition').value;
-
         player.isActive = false;
-        const newPlayer = {
-            id: Date.now(), name: newName, number: newNumber, position: newPosition, team, isActive: true,
-            stats: { atBats: 0, hits: 0, doubles: 0, triples: 0, homeRuns: 0, walks: 0, strikeouts: 0, rbis: 0 }
-        };
+        const newPlayer = { id: Date.now(), name: newName, number: newNumber, position: newPosition, team, isActive: true, stats: { atBats: 0, hits: 0, doubles: 0, triples: 0, homeRuns: 0, walks: 0, strikeouts: 0, rbis: 0 } };
         (team === 'home' ? homePlayers : awayPlayers).push(newPlayer);
-        
-        gameData.substitutionHistory.push({ outPlayer: player.name, inPlayer: newName, inning: gameData.currentInning });
-
+        gameData.substitutionHistory.push({ outPlayer: player.name, inPlayer: newName, inning: gameData.currentInning, half: gameData.isTop ? '表' : '裏', team: team === 'home' ? gameData.homeTeamName : gameData.awayTeamName, position: newPosition, timestamp: new Date().toLocaleTimeString() });
         closeModal('substitutionModal');
         saveAndRefresh();
     }
@@ -518,7 +567,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const record = gameData.atBatHistory.find(r => r.id === recordId);
         if (!record) return;
         currentEditingAtBatId = recordId;
-        // Populate modal
         document.getElementById('editAtBatResult').value = record.result;
         document.getElementById('editRunsScored').value = record.runs;
         openModal('editAtBatModal');
@@ -528,48 +576,37 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentEditingAtBatId) return;
         const record = gameData.atBatHistory.find(r => r.id === currentEditingAtBatId);
         if (!record) return;
-
-        // Revert old stats
         const player = [...homePlayers, ...awayPlayers].find(p => p.id === record.playerId);
         updatePlayerStats(player, record.result, record.runs, true);
         const scoreTeam = player.team === 'home' ? 'homeScore' : 'awayScore';
         gameData[scoreTeam][record.inning - 1] -= record.runs;
-
-        // Apply new stats
         record.result = document.getElementById('editAtBatResult').value;
         record.runs = parseInt(document.getElementById('editRunsScored').value) || 0;
         updatePlayerStats(player, record.result, record.runs, false);
         gameData[scoreTeam][record.inning - 1] += record.runs;
-
         closeModal('editAtBatModal');
         saveAndRefresh();
     }
 
-    // ... (Player Master Modal functions: open, confirm edit, delete)
     function openPlayerMasterModal() {
         const team = document.getElementById('playerTeam').value;
         const teamName = team === 'home' ? gameData.homeTeamName : gameData.awayTeamName;
         const listDiv = document.getElementById('playerMasterList');
         listDiv.innerHTML = '';
-
         const tx = db.transaction(playerStoreName, 'readonly');
         const index = tx.objectStore(playerStoreName).index('teamName');
         const request = index.getAll(teamName);
-
         request.onsuccess = () => {
             const players = request.result;
             if (players.length === 0) {
                 listDiv.innerHTML = '<p>登録選手なし</p>';
             } else {
-                players.forEach(player => {
+                players.sort((a, b) => a.number - b.number).forEach(player => {
                     const item = document.createElement('div');
                     item.className = 'player-master-item';
                     item.innerHTML = `<span>${player.number} ${player.name}</span><button class="edit-master-btn">編集</button>`;
                     item.querySelector('span').addEventListener('click', () => addPlayerFromMaster(player));
-                    item.querySelector('button').addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        openEditPlayerMasterModal(player);
-                    });
+                    item.querySelector('button').addEventListener('click', (e) => { e.stopPropagation(); openEditPlayerMasterModal(player); });
                     listDiv.appendChild(item);
                 });
             }
@@ -602,17 +639,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const newName = document.getElementById('editPlayerMasterName').value.trim();
         const newNumber = parseInt(document.getElementById('editPlayerMasterNumber').value);
         const originalPlayer = currentEditingMasterPlayer;
-
         const tx = db.transaction(playerStoreName, 'readwrite');
         const store = tx.objectStore(playerStoreName);
-        
-        // Delete the old record and add the new one
         store.delete([originalPlayer.teamName, originalPlayer.number]);
         store.put({ teamName: originalPlayer.teamName, name: newName, number: newNumber });
-
         tx.oncomplete = () => {
             closeModal('editPlayerMasterModal');
-            closeModal('playerMasterModal'); // Close the list modal as well
+            closeModal('playerMasterModal');
             showMessage('選手マスタを更新しました', 'success');
         };
     }
@@ -630,35 +663,58 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
     }
-
-    // ===== ヘルパー =====
-    function showMessage(message, type, targetElementId = null) {
-        let container = document.body;
-        if (targetElementId) {
-            container = document.getElementById(targetElementId);
-        } else {
-            // Use a global container for general messages
-            let globalContainer = document.querySelector('.global-message-container');
-            if (!globalContainer) {
-                globalContainer = document.createElement('div');
-                globalContainer.className = 'global-message-container';
-                document.body.appendChild(globalContainer);
+    
+    function makeScoreEditable() {
+        for (let team of ['home', 'away']) {
+            for (let inning = 1; inning <= 7; inning++) {
+                const cell = document.getElementById(`${team}-${inning}`);
+                cell.addEventListener('click', function() {
+                    if (this.querySelector('input')) return;
+                    const currentValue = this.textContent;
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.value = currentValue;
+                    input.min = '0';
+                    input.style.width = '50px';
+                    input.style.textAlign = 'center';
+                    this.innerHTML = '';
+                    this.appendChild(input);
+                    input.focus();
+                    input.select();
+                    const saveScore = () => {
+                        const newValue = parseInt(input.value) || 0;
+                        const scoreTeam = team === 'home' ? 'homeScore' : 'awayScore';
+                        gameData[scoreTeam][inning - 1] = newValue;
+                        saveAndRefresh();
+                    };
+                    input.addEventListener('blur', saveScore);
+                    input.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.blur(); });
+                });
             }
-            container = globalContainer;
+        }
+    }
+
+    // =====================================================================================
+    // ヘルパー関数
+    // =====================================================================================
+    function showMessage(message, type, targetElementId = null) {
+        let container = document.getElementById(targetElementId);
+        if (!container) {
+            container = document.querySelector('.global-message-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.className = 'global-message-container';
+                document.body.appendChild(container);
+            }
         }
         const msgDiv = document.createElement('div');
         msgDiv.className = `message ${type}`;
         msgDiv.textContent = message;
-        if (!targetElementId) {
-             container.appendChild(msgDiv);
-        } else {
-            container.innerHTML = ''; // Clear previous messages in targeted containers
-            container.appendChild(msgDiv);
-        }
-       
+        if (targetElementId) container.innerHTML = '';
+        container.appendChild(msgDiv);
         setTimeout(() => msgDiv.remove(), 3000);
     }
-    
+
     function getPositionFullName(abbr) {
         const map = { P: 'ピッチャー', C: 'キャッチャー', '1B': 'ファースト', '2B': 'セカンド', '3B': 'サード', SS: 'ショート', LF: 'レフト', CF: 'センター', RF: 'ライト', DH: '指名打者' };
         return map[abbr] || abbr;
@@ -668,14 +724,90 @@ document.addEventListener('DOMContentLoaded', () => {
         const map = { single: '単打', double: '二塁打', triple: '三塁打', homerun: 'ホームラン', runningHomerun: 'ランニングホームラン', walk: 'フォアボール', hbp: 'デッドボール', strikeout: '三振', strikeoutWildPitch: '振り逃げ', groundout: 'ゴロアウト', flyout: 'フライアウト', error: 'エラー' };
         return map[result] || result;
     }
-    
-    // PDF ダウンロード（内容は変更なし、呼び出しのみ確認）
-    function downloadGamePDF() { console.log('PDF Download triggered'); /* ... implementation ... */ }
-    function updatePlayerStats() { /* ... implementation ... */ }
-    function updateAtBatHistory() { /* ... implementation ... */ }
-    function updatePlayerStatsDisplay() { /* ... implementation ... */ }
-    function updateSubstitutionHistory() { /* ... implementation ... */ }
 
-    // アプリケーション開始
-    initializeApp();
+    function savePlayerToMaster(teamName, player) {
+        if (!db) return;
+        const transaction = db.transaction([playerStoreName], "readwrite");
+        const store = transaction.objectStore(playerStoreName);
+        store.put({ teamName: teamName, ...player });
+    }
+
+    // =====================================================================================
+    // PDF生成
+    // =====================================================================================
+    function downloadGamePDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'a4');
+        const content = document.createElement('div');
+        content.style.cssText = `position: absolute; left: -9999px; top: 0; width: 800px; background: white; padding: 20px; font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', 'Meiryo', sans-serif; font-size: 12px; line-height: 1.5;`;
+        
+        const getResultTextForPDF = () => {
+            const result = gameData.result;
+            if (!result) return '未確定';
+            if (result === 'home-win') return `${gameData.homeTeamName}勝利`;
+            if (result === 'away-win') return `${gameData.awayTeamName}勝利`;
+            return '引き分け';
+        };
+
+        const generateScoreRow = (team) => {
+            let html = '';
+            const scores = team === 'home' ? gameData.homeScore : gameData.awayScore;
+            let total = 0;
+            for (let i = 0; i < 7; i++) {
+                const score = scores[i] || 0;
+                total += score;
+                html += `<td style="border: 1px solid #333; padding: 8px; text-align: center;">${score}</td>`;
+            }
+            html += `<td style="border: 1px solid #333; padding: 8px; text-align: center; font-weight: bold; background: #e0e0e0;">${total}</td>`;
+            return html;
+        };
+
+        content.innerHTML = `
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h1 style="font-size: 20px; margin: 0;">⚾ 少年野球試合記録</h1>
+                <p style="font-size: 14px; margin: 5px 0;">試合日: ${gameData.date}</p>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <h2 style="font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 5px;">試合情報</h2>
+                <p><strong>会場:</strong> ${gameData.location || '未設定'}</p>
+                <p><strong>対戦:</strong> ${gameData.awayTeamName} vs ${gameData.homeTeamName}</p>
+                <p><strong>結果:</strong> ${getResultTextForPDF()}</p>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <h2 style="font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 5px;">スコア</h2>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr style="background: #f0f0f0;">
+                        <th style="border: 1px solid #333; padding: 8px;">チーム</th> ${[...Array(7).keys()].map(i => `<th style="border: 1px solid #333; padding: 8px;">${i+1}回</th>`).join('')} <th style="border: 1px solid #333; padding: 8px;">合計</th>
+                    </tr>
+                    <tr><td style="border: 1px solid #333; padding: 8px; font-weight: bold;">${gameData.awayTeamName}</td>${generateScoreRow('away')}</tr>
+                    <tr><td style="border: 1px solid #333; padding: 8px; font-weight: bold;">${gameData.homeTeamName}</td>${generateScoreRow('home')}</tr>
+                </table>
+            </div>
+        `;
+
+        document.body.appendChild(content);
+        html2canvas(content, { scale: 2, useCORS: true }).then(canvas => {
+            const imgData = canvas.toDataURL('image/png');
+            const imgWidth = 210; // A4 width in mm
+            const pageHeight = 297; // A4 height in mm
+            const imgHeight = canvas.height * imgWidth / canvas.width;
+            let heightLeft = imgHeight;
+            let position = 0;
+            doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+            while (heightLeft >= 0) {
+                position = heightLeft - imgHeight;
+                doc.addPage();
+                doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+            }
+            doc.save(`score_${gameData.date}.pdf`);
+            document.body.removeChild(content);
+            showMessage('PDFをダウンロードしました', 'success');
+        }).catch(err => {
+            console.error("PDF generation error:", err);
+            showMessage('PDFの生成に失敗しました', 'error');
+            if(document.body.contains(content)) document.body.removeChild(content);
+        });
+    }
 });
