@@ -36,8 +36,8 @@ header h1 {
 }
 
 .header-icon {
-    font-size: 1.2em;
     margin-right: 15px;
+    color: #fff; /* アイコンの色を白に固定 */
 }
 
 section {
@@ -494,7 +494,6 @@ button:active {
     }
 
     .header-icon {
-        font-size: 1.5em; /* スマホ表示ではアイコンを少し大きく */
         margin-right: 10px;
     }
     
