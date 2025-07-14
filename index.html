@@ -10,7 +10,7 @@
     <div class="container">
         <header>
             <h1><span class="header-icon">⚾</span> 少年野球スコア記録</h1>
-            <button onclick="openHelpModal()" class="help-button">使い方</button>
+            <button id="helpButton" class="help-button">使い方</button>
         </header>
 
         <!-- チーム設定 -->
@@ -55,8 +55,8 @@
                     <option value="draw">引き分け</option>
                 </select>
             </div>
-            <button onclick="downloadGamePDF()">📄 PDF形式ダウンロード</button>
-            <button onclick="resetGame()">試合をリセット</button>
+            <button id="downloadPdfButton">📄 PDF形式ダウンロード</button>
+            <button id="resetGameButton">試合をリセット</button>
         </section>
 
         <!-- 選手登録 -->
@@ -95,12 +95,12 @@
                 </select>
             </div>
             <div class="button-group">
-                <button onclick="addPlayer()">選手追加</button>
-                <button onclick="openPlayerMasterModal()">選手マスタから追加</button>
+                <button id="addPlayerButton">選手追加</button>
+                <button id="openPlayerMasterModalButton">選手マスタから追加</button>
             </div>
             <div class="button-group">
-                <button onclick="addSamplePlayers('home')">後攻チームにサンプル選手を登録</button>
-                <button onclick="addSamplePlayers('away')">先攻チームにサンプル選手を登録</button>
+                <button id="addSampleHomePlayersButton">後攻チームにサンプル選手を登録</button>
+                <button id="addSampleAwayPlayersButton">先攻チームにサンプル選手を登録</button>
             </div>
             
             <div class="players-list">
@@ -191,8 +191,8 @@
                     <h3>アウトカウント</h3>
                     <div class="out-count">
                         <span id="outCount">0</span> アウト
-                        <button onclick="addOut()">アウト+1</button>
-                        <button onclick="resetOuts()">リセット</button>
+                        <button id="addOutButton">アウト+1</button>
+                        <button id="resetOutsButton">リセット</button>
                     </div>
                 </div>
             </div>
@@ -203,7 +203,7 @@
             <h2>打席結果記録</h2>
             <div class="form-group">
                 <label for="battingTeam">打席チーム:</label>
-                <select id="battingTeam" onchange="updateBatterSelect()">
+                <select id="battingTeam">
                     <option value="away">先攻チーム</option>
                     <option value="home">後攻チーム</option>
                 </select>
@@ -236,7 +236,7 @@
                 <label for="runsScored">得点数:</label>
                 <input type="number" id="runsScored" min="0" max="4" value="0">
             </div>
-            <button onclick="recordAtBat()">打席結果記録</button>
+            <button id="recordAtBatButton">打席結果記録</button>
         </section>
 
         <!-- 選手別成績 -->
@@ -249,7 +249,7 @@
         <section class="at-bat-history">
             <h2>打席記録履歴</h2>
             <div id="atBatHistory"></div>
-            <button onclick="clearHistory()">履歴クリア</button>
+            <button id="clearHistoryButton">履歴クリア</button>
         </section>
 
         <!-- 選手交代履歴 -->
@@ -262,7 +262,7 @@
     <!-- 選手交代モーダル -->
     <div id="substitutionModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeSubstitutionModal()">&times;</span>
+            <span class="close" id="closeSubstitutionModalButton">&times;</span>
             <h3>選手交代</h3>
             <div id="substitutionPlayerInfo"></div>
             <div class="form-group">
@@ -291,8 +291,8 @@
                 </select>
             </div>
             <div class="modal-buttons">
-                <button onclick="confirmSubstitution()">交代実行</button>
-                <button onclick="closeSubstitutionModal()">キャンセル</button>
+                <button id="confirmSubstitutionButton">交代実行</button>
+                <button id="cancelSubstitutionButton">キャンセル</button>
             </div>
         </div>
     </div>
@@ -300,7 +300,7 @@
     <!-- 選手編集モーダル -->
     <div id="editPlayerModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeEditPlayerModal()">&times;</span>
+            <span class="close" id="closeEditPlayerModalButton">&times;</span>
             <h3>選手情報編集</h3>
             <div class="form-group">
                 <label for="editPlayerName">選手名:</label>
@@ -328,9 +328,9 @@
                 </select>
             </div>
             <div class="modal-buttons">
-                <button onclick="confirmEditPlayer()">保存</button>
-                <button onclick="deletePlayer()">削除</button>
-                <button onclick="closeEditPlayerModal()">キャンセル</button>
+                <button id="confirmEditPlayerButton">保存</button>
+                <button id="deletePlayerButton">削除</button>
+                <button id="cancelEditPlayerButton">キャンセル</button>
             </div>
         </div>
     </div>
@@ -338,7 +338,7 @@
     <!-- 打席編集モーダル -->
     <div id="editAtBatModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeEditAtBatModal()">&times;</span>
+            <span class="close" id="closeEditAtBatModalButton">&times;</span>
             <h3>打席結果編集</h3>
             <div id="editAtBatInfo"></div>
             <input type="hidden" id="editingAtBatId">
@@ -365,8 +365,8 @@
                 <input type="number" id="editRunsScored" min="0" max="4" value="0">
             </div>
             <div class="modal-buttons">
-                <button onclick="confirmEditAtBat()">保存</button>
-                <button onclick="closeEditAtBatModal()">キャンセル</button>
+                <button id="confirmEditAtBatButton">保存</button>
+                <button id="cancelEditAtBatButton">キャンセル</button>
             </div>
         </div>
     </div>
@@ -374,12 +374,12 @@
     <!-- 選手マスタ選択モーダル -->
     <div id="playerMasterModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closePlayerMasterModal()">&times;</span>
+            <span class="close" id="closePlayerMasterModalButton">&times;</span>
             <h3>選手マスタから追加</h3>
             <div id="playerMasterList"></div>
             <div id="playerMasterModalErrorDisplay" class="message-container"></div>
             <div class="modal-buttons">
-                <button onclick="closePlayerMasterModal()">閉じる</button>
+                <button id="cancelPlayerMasterModalButton">閉じる</button>
             </div>
         </div>
     </div>
@@ -387,7 +387,7 @@
     <!-- 選手マスタ編集モーダル -->
     <div id="editPlayerMasterModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeEditPlayerMasterModal()">&times;</span>
+            <span class="close" id="closeEditPlayerMasterModalButton">&times;</span>
             <h3>選手マスタ編集</h3>
             <div id="editPlayerMasterInfo"></div>
             <div class="form-group">
@@ -400,9 +400,9 @@
             </div>
             <div id="editPlayerMasterErrorDisplay" class="message-container"></div>
             <div class="modal-buttons">
-                <button onclick="confirmEditPlayerMaster()">保存</button>
-                <button onclick="deletePlayerFromMaster()">削除</button>
-                <button onclick="closeEditPlayerMasterModal()">キャンセル</button>
+                <button id="confirmEditPlayerMasterButton">保存</button>
+                <button id="deletePlayerFromMasterButton">削除</button>
+                <button id="cancelEditPlayerMasterButton">キャンセル</button>
             </div>
         </div>
     </div>
@@ -410,7 +410,7 @@
     <!-- ヘルプモーダル -->
     <div id="helpModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeHelpModal()">&times;</span>
+            <span class="close" id="closeHelpModalButton">&times;</span>
             <h3>⚾ 少年野球スコア記録 アプリの使い方</h3>
             <div class="help-content">
                 <h4>1. チーム設定</h4>
@@ -470,7 +470,7 @@
                 <p>ご不明な点がありましたら、各機能をお試しください。</p>
             </div>
             <div class="modal-buttons">
-                <button onclick="closeHelpModal()">閉じる</button>
+                <button id="cancelHelpModalButton">閉じる</button>
             </div>
         </div>
     </div>
